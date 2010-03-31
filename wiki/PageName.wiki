@@ -3,9 +3,18 @@
 = Getting started with SVN =
 
   # Checking out code: (see http://code.google.com/p/jawpintos/source/checkout) with say 'jawpintos' as root directory:
-     * svn checkout https://jawpintos.googlecode.com/svn/trunk/ jawpintos --username your_gmail_id
-  # Adding a file (say README.txt) to the root directory:
-     * jawpintos> svn add README.txt
+{{{
+> svn checkout https://jawpintos.googlecode.com/svn/trunk/ jawpintos --username your_gmail_id
+}}}
+  # Adding a file (say mynewfile.txt) to the root directory:
+{{{
+> cd jawpintos
+jawpintos> svn add mynewfile.txt
+}}}
   # Edit file using vi or any other IDE
-  # Seeing what files are changed in your local version that are not yet 'committed' into the repository:
-     * jawpintos> svn add README.txt
+  # Seeing what files are changed in your local 'checked out' version that are not yet 'committed' into the repository:
+{{{
+jawpintos> svn status .
+A       .
+A       README.txt
+}}}
