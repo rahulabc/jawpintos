@@ -6,15 +6,15 @@
 {{{
 > svn checkout https://jawpintos.googlecode.com/svn/trunk/ jawpintos --username your_gmail_id
 }}}
-  # Adding a file (say mynewfile.txt) to the root directory:
+  # We'll use the sandbox directory to play around. Adding a file (say mynewfile.txt) to  the sandbox directory:
 {{{
 > cd jawpintos
-jawpintos> svn add mynewfile.txt
+> cd sandbox
+jawpintos/sandbox> svn add mynewfile.txt
 }}}
   # Edit file using vi or any other IDE
   # Seeing what files are changed in your local 'checked out' version that are not yet 'committed' into the repository (Status codes: M: your changes need to be merged to repository, C: conflicts exist and you need to resolve them, A: you added your file to the repository, you still need to add them, ?: File is not added to the repository):
 {{{
-jawpintos> cd sandbox;
 jawpintos/sandbox> vi README.txt (make some changes)
 jawpintos/sandbox> svn status
 M       README.txt
