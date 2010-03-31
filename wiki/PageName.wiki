@@ -9,7 +9,7 @@
   # We'll use the sandbox directory to play around. Adding a file (say mynewfile.txt) to  the sandbox directory:
 {{{
 > cd jawpintos
-> cd sandbox
+jawpintos> cd sandbox
 jawpintos/sandbox> svn add mynewfile.txt
 }}}
   # Edit file using vi or any other IDE
