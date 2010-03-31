@@ -12,7 +12,7 @@
 jawpintos> cd sandbox
 jawpintos/sandbox> svn add mynewfile.txt
 }}}
-  # Edit file using vi or any other IDE
+  # Edit file using vi or any other IDE: vi mynewfile.txt and make changes.
   # Seeing what files are changed in your local 'checked out' version that are not yet 'committed' into the repository (Status codes: M: your changes need to be merged to repository, C: conflicts exist and you need to resolve them, A: you added your file to the repository, you still need to add them, ?: File is not added to the repository):
 {{{
 jawpintos/sandbox> vi README.txt (make some changes)
