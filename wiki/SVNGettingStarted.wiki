@@ -2,7 +2,7 @@
 
 = Getting started with SVN =
 
-  # Checking out code: (see http://code.google.com/p/jawpintos/source/checkout for details on password generation) with say 'jawpintos' as root directory:
+  # Checking out code: (see http://code.google.com/p/jawpintos/source/checkout for details on password generation) with say 'jawpintos' as root directory (you can name this anything you want):
 {{{
 > svn checkout https://jawpintos.googlecode.com/svn/trunk/ jawpintos --username your_gmail_id
 }}}
