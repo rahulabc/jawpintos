@@ -3,7 +3,7 @@
 = Getting started with SVN =
 
   * Checking out code: (see http://code.google.com/p/jawpintos/source/checkout) with say 'jawpintos' as root directory:
-     * svn checkout https://jawpintos.googlecode.com/svn/trunk/ jawpintos --username <gmail_id>
+     * svn checkout https://jawpintos.googlecode.com/svn/trunk/ jawpintos --username your_gmail_id
   * Adding a file (say README.txt) to the root directory:
      * jawpintos> svn add README.txt
   * Edit file using vi or any other IDE
