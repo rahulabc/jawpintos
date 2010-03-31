@@ -16,7 +16,7 @@ jawpintos/sandbox> svn add mynewfile.txt
 {{{
 jawpintos/sandbox> vi README.txt (make some changes)
 }}}
-  # Seeing what files are changed in your local 'checked out' version that are not yet 'committed' into the repository (Status codes: M: your changes need to be merged to repository, C: conflicts exist and you need to resolve them, A: you added your file to the repository, you still need to add them, ?: File is not added to the repository):
+  # Seeing what files are changed in your local 'checked out' version that are not yet 'committed' into the repository (Status codes: M: your changes need to be merged to repository, C: conflicts exist and you need to resolve them, A: you added your file to the repository, you still need to add them, ?: File is not added to the repository, but exists in your local version):
 {{{
 jawpintos/sandbox> svn status
 M       README.txt
