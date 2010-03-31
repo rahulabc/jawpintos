@@ -12,7 +12,7 @@
 jawpintos> cd sandbox
 jawpintos/sandbox> svn add mynewfile.txt
 }}}
-  # Edit file using vi or any other IDE:
+  # Edit an existing file using vi or any other IDE:
 {{{
 jawpintos/sandbox> vi README.txt (make some changes)
 }}}
