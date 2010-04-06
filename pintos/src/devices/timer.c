@@ -119,7 +119,7 @@ timer_sleep(int64_t ticks)
   list_push_back(&wait_semas, &s.elem);
   //printf("tid: %d sleeping\n",thread_current()->tid);
   sema_down(&s.sema); 
-  //printf("tid: %d waking\n",thread_current()->tid);
+  ///*printf("tid: %d waking\n",thread_current()->tid);*/
   ASSERT (intr_get_level () == INTR_ON);
 }
 
