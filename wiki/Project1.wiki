@@ -9,4 +9,4 @@
    # You must implement priority donation for locks. You need not implement priority donation for the other Pintos synchronization constructs. You do need to implement priority scheduling in all cases.
    # Implement thread_set_priority: Sets the current thread's priority to new_priority. If the current thread no longer has the highest priority, yields.
    # Implement thread_get_priority: Returns the current thread's priority. In the presence of priority donation, returns the higher (donated) priority.
-   # You need not provide any interface to allow a thread to directly modify other threads' priorities.
+   * You need not provide any interface to allow a thread to directly modify other threads' priorities.
