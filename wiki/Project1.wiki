@@ -10,3 +10,9 @@
    # Implement thread_set_priority: Sets the current thread's priority to new_priority. If the current thread no longer has the highest priority, yields.
    # Implement thread_get_priority: Returns the current thread's priority. In the presence of priority donation, returns the higher (donated) priority.
    * You need not provide any interface to allow a thread to directly modify other threads' priorities.
+
+= QUESTIONS =
+   # timer_interrupt correct place to handle waiting thread while loop?
+      # What's too big?
+   # does interrupt handler run to completion?
+   # priority queue implementation available?
