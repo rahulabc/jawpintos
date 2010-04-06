@@ -13,6 +13,6 @@
 
 = QUESTIONS =
    # timer_interrupt correct place to handle waiting thread while loop?
-      # What's too big?
+      - What's too big?
    # does interrupt handler run to completion?
    # priority queue implementation available?
