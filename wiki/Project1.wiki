@@ -1,4 +1,4 @@
-#summary Project1
+#summary TODO list
 
 = Priority Scheduling =
    # When a thread is added to the ready list that has a higher priority than the currently running thread, the current thread should immediately yield the processor to the new thread.
