@@ -46,7 +46,7 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  printf("tid %d: initializing wait_semas\n", thread_current()->tid);
+  //printf("tid %d: initializing wait_semas\n", thread_current()->tid);
   list_init(&wait_semas);
 }
 
@@ -97,6 +97,8 @@ timer_elapsed (int64_t then)
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
+ 
+/* REMOVE ME */
 void
 timer_sleep2 (int64_t ticks) 
 {
@@ -115,9 +117,9 @@ timer_sleep(int64_t ticks)
   s.sleep_ticks = ticks;
   sema_init(&s.sema,0);
   list_push_back(&wait_semas, &s.elem);
-  printf("tid: %d sleeping\n",thread_current()->tid);
+  //printf("tid: %d sleeping\n",thread_current()->tid);
   sema_down(&s.sema); 
-  printf("tid: %d waking\n",thread_current()->tid);
+  //printf("tid: %d waking\n",thread_current()->tid);
   ASSERT (intr_get_level () == INTR_ON);
 }
 
