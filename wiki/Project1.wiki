@@ -18,3 +18,11 @@
    # priority queue implementation available?
    # thread_block/unblock() vs semaphore
       - why are synchronization primitives preferred?
+
+= ABOUT SEMAPHORES =
+   * sema_down pushes the calling thread to the waiting threads list and thread_blocks it.
+   * sema_up pops the calling thread from the waiting threads list and thread_unblocks it.
+   * thread_unblock, instead of resuming right to the unblocked process, puts pushes it into the ready queue, just like thread_yield is doing.
+      * I called thread_yield after sema_up to push the thread into the ready queue; I'm guessing this was redundant.
+      * This may mean that using thread_block/unblock() is the same as using semaphores, it's just implemented at a higher level.
+      * sema_up()ing doesn't resume right into the corresponding thread. I guess the scheduler just picks it up after it's been pushed into the ready list.
