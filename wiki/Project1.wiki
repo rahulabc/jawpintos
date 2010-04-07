@@ -16,3 +16,5 @@
       - What's too big?
    # does interrupt handler run to completion?
    # priority queue implementation available?
+   # thread_block/unblock() vs semaphore
+      - why are synchronization primitives preferred?
