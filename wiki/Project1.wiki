@@ -11,6 +11,8 @@
    # Implement thread_get_priority: Returns the current thread's priority. In the presence of priority donation, returns the higher (donated) priority.
    * You need not provide any interface to allow a thread to directly modify other threads' priorities.
 
+   * *priority queue*: list.c/h has sorting and insert-in-order functions, so it can be used as a priority queue, but it is not as efficient as a heap.
+
 = QUESTIONS =
    # timer_interrupt correct place to handle waiting thread while loop?
       - What's too big?
