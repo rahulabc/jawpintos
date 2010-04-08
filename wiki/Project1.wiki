@@ -2,7 +2,7 @@
 
 = Priority Scheduling =
    # When a thread is added to the ready list that has a higher priority than the currently running thread, the current thread should immediately yield the processor to the new thread. DONE
-   # When threads are waiting for a lock, semaphore, or condition variable, the highest priority waiting thread should be awakened first.
+   # When threads are waiting for a lock, semaphore, or condition variable, the highest priority waiting thread should be awakened first. DONE, THOUGH no test captures.
    # A thread may raise or lower its own priority at any time, but lowering its priority such that it no longer has the highest priority must cause it to immediately yield the CPU.
    # Implement priority donation: H to "donate" its priority to L while L is holding the lock, then recall the donation once L releases (and thus H acquires) the lock.
    # Be sure to handle multiple donations, in which multiple priorities are donated to a single thread. You must also handle nested donation: if H is waiting on a lock that M holds and M is waiting on a lock that L holds, then both M and L should be boosted to H's priority. If necessary, you may impose a reasonable limit on depth of nested priority donation, such as 8 levels.
