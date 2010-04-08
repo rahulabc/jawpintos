@@ -70,8 +70,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-bool priority_compare (const struct list_elem *a,
-		       const struct list_elem *b, void *aux);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -351,6 +349,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  thread_current()->orig_priority = new_priority;
   thread_yield ();
 }
 
@@ -476,8 +475,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->orig_priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+  list_init (&t->acquired_locks);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -594,6 +595,7 @@ allocate_tid (void)
 /* comparison function for the threads' priorities */
 bool priority_compare (const struct list_elem *a, 
 		       const struct list_elem *b, void *aux) {
+  ASSERT(aux==NULL);
   struct thread *t1 = list_entry (a, struct thread, elem);
   struct thread *t2 = list_entry (b, struct thread, elem);
   if (t1->priority > t2->priority) return true;
