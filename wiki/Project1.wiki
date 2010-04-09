@@ -28,3 +28,6 @@
       * I called thread_yield after sema_up to push the thread into the ready queue; I'm guessing this was redundant.
       * This may mean that using thread_block/unblock() is the same as using semaphores, it's just implemented at a higher level.
       * sema_up()ing doesn't resume right into the corresponding thread. I guess the scheduler just picks it up after it's been pushed into the ready list.
+
+= PROJECT BUGS =
+   # priority scheduling: is the problem because we are using the same _elem_ element for both semaphore waiter list and ready list? 
