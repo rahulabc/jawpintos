@@ -226,7 +226,6 @@ lock_acquire (struct lock *lock)
 bool
 lock_try_acquire (struct lock *lock)
 {
-  // TODO
   bool success;
 
   ASSERT (lock != NULL);
