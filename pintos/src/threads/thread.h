@@ -141,11 +141,6 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-// RemoveMe:
-/* To Test which threads are stored in which order before 
-   scheduler is called */
-void check_ready_list (void);
-
 bool priority_compare (const struct list_elem *a,
 		       const struct list_elem *b, void *aux);
 
