@@ -31,10 +31,12 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-struct sleep_sema_elem
+bool tick_compare(const struct list_elem *a,
+                  const struct list_elem *b, void *aux); 
+ struct sleep_sema_elem
 {
   struct list_elem elem;
-  int sleep_ticks;
+  int wakeup_tick; // wake me up when this tick occurs
   struct semaphore sema;
 };
 
@@ -110,16 +112,23 @@ timer_sleep2 (int64_t ticks)
     thread_yield ();
 }
 
+bool tick_compare(const struct list_elem *a,
+                  const struct list_elem *b, void *aux) {
+  ASSERT(aux==NULL);
+  struct sleep_sema_elem *s1 = list_entry(a, struct sleep_sema_elem, elem);
+  struct sleep_sema_elem *s2 = list_entry(b, struct sleep_sema_elem, elem);
+  if(s1->wakeup_tick < s2->wakeup_tick) return true;
+  return false;
+}
+                  
 void
-timer_sleep(int64_t ticks) 
+timer_sleep(int64_t req_ticks) 
 {
   struct sleep_sema_elem s;
-  s.sleep_ticks = ticks;
+  s.wakeup_tick = ticks+req_ticks;
   sema_init(&s.sema,0);
-  list_push_back(&wait_semas, &s.elem);
-  //printf("tid: %d sleeping\n",thread_current()->tid);
+  list_insert_ordered(&wait_semas, &s.elem, tick_compare, NULL);
   sema_down(&s.sema); 
-  ///*printf("tid: %d waking\n",thread_current()->tid);*/
   ASSERT (intr_get_level () == INTR_ON);
 }
 
@@ -203,13 +212,13 @@ timer_interrupt (struct intr_frame *args UNUSED)
   struct list_elem *e = list_begin(&wait_semas);
   while(e!=list_end(&wait_semas)) {
     struct sleep_sema_elem* s = list_entry(e,struct sleep_sema_elem, elem);
-    if(s->sleep_ticks<=1) {
+    if(s->wakeup_tick <= ticks) { // expired 
       e = list_remove(e);
       sema_up(&s->sema);
-    } else {
-      s->sleep_ticks--;
-      e = list_next(e);
-    }
+    } else { 
+      // ordered list, so rest of elements are also not expired
+      break;
+    } 
   }
 }
 
