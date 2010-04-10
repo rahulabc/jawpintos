@@ -30,21 +30,41 @@ Anand Madhavan <manand@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
+0. create a list for threads that wants to sleep.
+1. create a semaphore for each thread.
+2. record the tick # that the thread should wake up at.
+3. insert the semaphore in order of increasing tick
+4. wake up all the threads that have expired.
+
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
+
+- initially, we had number of ticks left, and decrement the count for each
+  tick.
+- Only the threads that have expired are checked in the interrupt handler.
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
 
+- lock access to the global semaphore list to keep the correct ordering of
+  'wake up ticks' when the semaphore element is being inserted into the
+  list.
+
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
+
+TODO: using a lock in interrupt handler fails
+
+- try to acquire a lock in the timer interrupt before accessing the
+  waiting semaphore list. If it returns false, skip waking up the threads.
 
 ---- RATIONALE ----
 
