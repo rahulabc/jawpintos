@@ -247,6 +247,7 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered (&ready_list, &t->elem,
 		       priority_compare, NULL);
+
   t->status = THREAD_READY;
   if (thread_current () != idle_thread && !intr_context ()) {
     thread_yield ();
@@ -322,6 +323,7 @@ thread_yield (void)
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem,
 			 priority_compare, NULL);
+
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -564,6 +566,8 @@ thread_schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+  list_sort (&ready_list, priority_compare, NULL);
+
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
@@ -591,6 +595,23 @@ allocate_tid (void)
   return tid;
 }
 
+
+// RemoveMe:
+/* To Test which threads are stored in which order before 
+   scheduler is called */
+void check_ready_list (void) {
+  printf("Threads in the ready_list start. \n");
+  struct list_elem *e;
+  for (e = list_begin (&ready_list); e != list_end (&ready_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, elem);
+      printf("%s, priority = %d\n", t->name, t->priority);
+    }
+  printf("Threads in the ready_list end.\n");
+  /******************************************/
+}
+
 
 /* comparison function for the threads' priorities */
 bool priority_compare (const struct list_elem *a, 
