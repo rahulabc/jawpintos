@@ -23,7 +23,9 @@ static int64_t ticks;
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
+
 static struct list wait_semas;
+static struct lock wait_semas_lock;
 
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
@@ -33,7 +35,7 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 bool tick_compare(const struct list_elem *a,
                   const struct list_elem *b, void *aux); 
- struct sleep_sema_elem
+struct sleep_sema_elem
 {
   struct list_elem elem;
   int wakeup_tick; // wake me up when this tick occurs
@@ -50,6 +52,7 @@ timer_init (void)
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
   //printf("tid %d: initializing wait_semas\n", thread_current()->tid);
   list_init(&wait_semas);
+  lock_init(&wait_semas_lock);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -97,20 +100,6 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
- 
-/* REMOVE ME */
-void
-timer_sleep2 (int64_t ticks) 
-{
-  int64_t start = timer_ticks ();
-
-  ASSERT (intr_get_level () == INTR_ON);
-  
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
-}
 
 bool tick_compare(const struct list_elem *a,
                   const struct list_elem *b, void *aux) {
@@ -121,13 +110,19 @@ bool tick_compare(const struct list_elem *a,
   return false;
 }
                   
-void
+/* Sleeps for approximately TICKS timer ticks.  Interrupts must
+   be turned on. */
+ void
 timer_sleep(int64_t req_ticks) 
 {
   struct sleep_sema_elem s;
   s.wakeup_tick = ticks+req_ticks;
   sema_init(&s.sema,0);
+
+  lock_acquire(&wait_semas_lock);
   list_insert_ordered(&wait_semas, &s.elem, tick_compare, NULL);
+  lock_release(&wait_semas_lock);
+
   sema_down(&s.sema); 
   ASSERT (intr_get_level () == INTR_ON);
 }
