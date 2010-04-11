@@ -245,6 +245,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
+  list_sort(&ready_list, priority_compare, NULL); 
   list_insert_ordered (&ready_list, &t->elem,
 		       priority_compare, NULL);
 
@@ -350,8 +351,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
-  thread_current()->orig_priority = new_priority;
+  struct thread *cur = thread_current();
+  bool priority_donated = (cur->orig_priority != cur->priority);
+  cur->orig_priority = new_priority;
+  /* set the actual priority to new_priority only if
+     new priority is higher than the current actual priority
+     and the actual priority is one that is donated */
+  if ((!priority_donated) || (new_priority > cur->priority)) 
+    cur->priority = new_priority;
   thread_yield ();
 }
 
