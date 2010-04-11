@@ -88,7 +88,13 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int orig_priority;                  /* Priority that is originally set. */
+    int orig_priority;                  /* Priority that is originally
+   set. */
+
+    int mlfqs_nice;                     /* nice value for MLFQ */
+    /* recent_cpu is a real number */
+    int mlfqs_recent_cpu;               /* recent_cpu for MLFQ */
+
     struct list acquired_locks;         /* locks that this thread has acquired. */
 
     struct list_elem allelem;           /* List element for all threads list. */

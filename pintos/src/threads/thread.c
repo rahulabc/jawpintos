@@ -15,6 +15,10 @@
 #include "userprog/process.h"
 #endif
 
+/* For MLFQS */
+#include "devices/timer.h"
+#include <reals.h>
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -58,6 +62,9 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+
+/* system-wide load average for MLFQS */
+static int mlfqs_load_avg;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -117,6 +124,22 @@ thread_start (void)
   sema_down (&idle_started);
 }
 
+void update_recent_cpu (struct thread *t, void *aux);
+
+/* calculate recent cpu */
+void update_recent_cpu (struct thread *t, void *aux UNUSED) 
+{
+  int load_avg = mlfqs_load_avg;   // real
+  int recent_cpu = t->mlfqs_recent_cpu;   // real
+  int nice = t->mlfqs_nice;
+
+  //  t->mlfqs_recent_cpu = ((2*load_avg)/(2*load_avg + 1)) * recent_cpu + nice;
+  int tmp = mult_real_int(load_avg, 2);
+  tmp = div_reals(tmp, sum_real_int(tmp, 1));
+  tmp = mult_reals(tmp, recent_cpu);
+  t->mlfqs_recent_cpu = sum_real_int(tmp, nice);
+}
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
@@ -133,6 +156,26 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+  /* MLFQS */
+  if (t != idle_thread)
+    t->mlfqs_recent_cpu = sum_real_int(t->mlfqs_recent_cpu, 1);
+  if (timer_ticks() % TIMER_FREQ == 0) 
+    {
+      thread_foreach(update_recent_cpu, NULL);
+      /* load_avg update :
+       load_avg = (59/60)*load_avg + (1/60)*ready_threads*/
+      int tmp, tmp2;
+      tmp = mult_real_int(mlfqs_load_avg, 59);
+      tmp = div_real_int(tmp, 60);
+      int ready_threads = list_size(&ready_list);
+      if (t != idle_thread)
+        ready_threads++;
+      tmp2 = int_to_real(ready_threads);
+      tmp2 = div_real_int(tmp2, 60);
+      mlfqs_load_avg = sum_reals(tmp, tmp2);
+    }
+  /****************************/
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -182,6 +225,11 @@ thread_create (const char *name, int priority,
 
   /* Initialize thread. */
   init_thread (t, name, priority);
+
+  /* MLFQS */
+  t->mlfqs_nice = thread_current()->mlfqs_nice;
+  t->mlfqs_recent_cpu = thread_current()->mlfqs_recent_cpu;
+
   tid = t->tid = allocate_tid ();
 
   /* Prepare thread for first run by initializing its stack.
@@ -245,7 +293,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_sort(&ready_list, priority_compare, NULL); 
+
+  list_sort(&ready_list, priority_compare, NULL);
   list_insert_ordered (&ready_list, &t->elem,
 		       priority_compare, NULL);
 
@@ -371,33 +420,43 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  if (!thread_mlfqs)
+    return;
+  int recent_cpu = thread_current()->mlfqs_recent_cpu;  // real
+  /* set the new nice value */
+  thread_current()->mlfqs_nice = nice;
+  /* recalculate the thread's priority based on
+     new nice value */
+  int tmp_priority = div_real_int(recent_cpu, 4);
+  tmp_priority = -round_real_to_int(diff_real_int(tmp_priority, PRI_MAX - (nice * 2)));
+  if (tmp_priority > PRI_MAX)
+    tmp_priority = PRI_MAX;
+  else if (tmp_priority < PRI_MIN)
+    tmp_priority = PRI_MIN;
+  thread_set_priority(tmp_priority);
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->mlfqs_nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return round_real_to_int(mult_real_int(mlfqs_load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return round_real_to_int(mult_real_int(thread_current()->mlfqs_recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -485,6 +544,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->orig_priority = priority;
+
+  t->mlfqs_recent_cpu = 0;
+  t->mlfqs_nice = 0;
+
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
   list_init (&t->acquired_locks);
