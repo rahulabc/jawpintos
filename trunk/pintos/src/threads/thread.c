@@ -78,6 +78,11 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+/* MLFQS functions */
+void mlfqs_update_recent_cpu (struct thread *t, void *aux);
+void mlfqs_update_priority (struct thread *t, void *aux);
+int mlfqs_calc_priority (const struct thread *t);
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -124,10 +129,9 @@ thread_start (void)
   sema_down (&idle_started);
 }
 
-void update_recent_cpu (struct thread *t, void *aux);
 
 /* calculate recent cpu */
-void update_recent_cpu (struct thread *t, void *aux UNUSED) 
+void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED) 
 {
   int load_avg = mlfqs_load_avg;   // real
   int recent_cpu = t->mlfqs_recent_cpu;   // real
@@ -138,6 +142,29 @@ void update_recent_cpu (struct thread *t, void *aux UNUSED)
   tmp = div_reals(tmp, sum_real_int(tmp, 1));
   tmp = mult_reals(tmp, recent_cpu);
   t->mlfqs_recent_cpu = sum_real_int(tmp, nice);
+}
+
+/* priority = PRI_MAX - (recent_cpu / 4) - (nice * 2) */
+int mlfqs_calc_priority (const struct thread *t) 
+{
+  int recent_cpu = t->mlfqs_recent_cpu;
+  int nice = t->mlfqs_nice;
+
+  int tmp_priority = div_real_int(recent_cpu, 4);
+  tmp_priority = -round_real_to_int(diff_real_int(tmp_priority, PRI_MAX - (nice * 2)));
+  if (tmp_priority > PRI_MAX)
+    tmp_priority = PRI_MAX;
+  else if (tmp_priority < PRI_MIN)
+    tmp_priority = PRI_MIN;
+  
+  return tmp_priority;
+}
+
+/* update priority of thread */
+void mlfqs_update_priority (struct thread *t, void *aux UNUSED)
+{
+  t->priority = mlfqs_calc_priority(t);
+  t->orig_priority = t->priority;
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -158,22 +185,31 @@ thread_tick (void)
     kernel_ticks++;
 
   /* MLFQS */
-  if (t != idle_thread)
-    t->mlfqs_recent_cpu = sum_real_int(t->mlfqs_recent_cpu, 1);
-  if (timer_ticks() % TIMER_FREQ == 0) 
+  if (thread_mlfqs)
     {
-      thread_foreach(update_recent_cpu, NULL);
-      /* load_avg update :
-       load_avg = (59/60)*load_avg + (1/60)*ready_threads*/
-      int tmp, tmp2;
-      tmp = mult_real_int(mlfqs_load_avg, 59);
-      tmp = div_real_int(tmp, 60);
-      int ready_threads = list_size(&ready_list);
       if (t != idle_thread)
-        ready_threads++;
-      tmp2 = int_to_real(ready_threads);
-      tmp2 = div_real_int(tmp2, 60);
-      mlfqs_load_avg = sum_reals(tmp, tmp2);
+	       t->mlfqs_recent_cpu = sum_real_int(t->mlfqs_recent_cpu, 1);
+      if (timer_ticks() % TIMER_FREQ == 0) 
+	       { 
+	         /* load_avg update :
+		    load_avg = (59/60)*load_avg + (1/60)*ready_threads*/
+		 int tmp, tmp2;
+		 tmp = mult_real_int(mlfqs_load_avg, 59);
+		 tmp = div_real_int(tmp, 60);
+		 int ready_threads = list_size(&ready_list);
+		 if (t != idle_thread)
+		   ready_threads++;
+		 tmp2 = int_to_real(ready_threads);
+		 tmp2 = div_real_int(tmp2, 60);
+		 mlfqs_load_avg = sum_reals(tmp, tmp2);
+		 
+		 /* recent_cpu update */
+		 thread_foreach(mlfqs_update_recent_cpu, NULL);
+		 
+		 /* try ready list priority update and then do sort */
+		 thread_foreach(mlfqs_update_priority, NULL);
+		 list_sort(&ready_list, priority_compare, NULL);
+	       }
     }
   /****************************/
 
@@ -424,17 +460,12 @@ thread_set_nice (int nice)
 {
   if (!thread_mlfqs)
     return;
-  int recent_cpu = thread_current()->mlfqs_recent_cpu;  // real
+
   /* set the new nice value */
   thread_current()->mlfqs_nice = nice;
   /* recalculate the thread's priority based on
      new nice value */
-  int tmp_priority = div_real_int(recent_cpu, 4);
-  tmp_priority = -round_real_to_int(diff_real_int(tmp_priority, PRI_MAX - (nice * 2)));
-  if (tmp_priority > PRI_MAX)
-    tmp_priority = PRI_MAX;
-  else if (tmp_priority < PRI_MIN)
-    tmp_priority = PRI_MIN;
+  int tmp_priority = mlfqs_calc_priority (thread_current());
   thread_set_priority(tmp_priority);
 }
 
