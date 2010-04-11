@@ -118,10 +118,18 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
+
+  /* We have to increment semaphore value before unblocking the thread
+     because waiting threads are waiting for the semaphore value to be
+     positive */
+  sema->value++;
+
+  /* sort before popping the first waiter */
+  list_sort(&sema->waiters, priority_compare, NULL);
+
   if (!list_empty (&sema->waiters)) 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
-  sema->value++;
   intr_set_level (old_level);
 }
 
@@ -253,7 +261,6 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
-  sema_up (&lock->semaphore);
 
   /* give up any donated priorities by going through locks i still
      have acquired and set it to those */
@@ -276,6 +283,8 @@ lock_release (struct lock *lock)
     }
   }
   curr->priority = max_donated_priority;
+
+  sema_up (&lock->semaphore);
 }
 
 /* Returns true if the current thread holds LOCK, false
