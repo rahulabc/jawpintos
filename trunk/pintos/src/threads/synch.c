@@ -192,6 +192,7 @@ lock_init (struct lock *lock)
 
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
+  sema_init (&lock->acquire_semaphore, 1);
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -208,17 +209,36 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  
+ 
+  sema_down (&lock->acquire_semaphore);
+ 
   /* donate priority to any thread that might be holding this lock */
   if(lock->holder != NULL) {
     /* if my priority is higher than lock holder's priority, donate */
     struct thread* curr = thread_current();
     if(curr->priority > lock->holder->priority) {
       lock->holder->priority = curr->priority;
-    } 
+    }
+    curr->blocking_lock = lock;
+    struct thread *next_thread = lock->holder;
+    while (next_thread->blocking_lock) {
+      /*
+      if (next_thread->priority < curr->priority) {
+	next_thread->priority = curr->priority;
+	next_thread = next_thread->blocking_lock->holder;
+	}*/
+      struct thread *h = next_thread->blocking_lock->holder;
+      if (next_thread->priority > h->priority) {
+	h->priority = next_thread->priority;
+	next_thread = next_thread->blocking_lock->holder;
+      }
+    }
   }
 
+  sema_up (&lock->acquire_semaphore);
+
   sema_down (&lock->semaphore);
+  thread_current ()->blocking_lock = NULL;
   struct thread* curr = thread_current();
   lock->holder = curr;
   /* keep a list of locks we've acquired... */
