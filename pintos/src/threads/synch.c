@@ -369,10 +369,10 @@ cond_wait (struct condition *cond, struct lock *lock)
   sema_init (&waiter.semaphore, 0);
   /* inserts semaphore_elem (thread) that share a condition variable
      in order of thread priority */
-  list_insert_ordered (&cond->waiters, &waiter.elem,
-		       sema_priority_compare, NULL);
   lock_release (lock);
   sema_down (&waiter.semaphore);
+  list_insert_ordered (&cond->waiters, &waiter.elem,
+		       sema_priority_compare, NULL);
   lock_acquire (lock);
 }
 
