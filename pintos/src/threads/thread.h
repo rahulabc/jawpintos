@@ -97,6 +97,9 @@ struct thread
 
     struct list acquired_locks;         /* locks that this thread has acquired. */
 
+    struct lock *blocking_lock;         /* lock that this thread has been
+					   blocked by */
+
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
