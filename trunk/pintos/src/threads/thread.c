@@ -160,7 +160,10 @@ int mlfqs_calc_priority (const struct thread *t)
   int nice = t->mlfqs_nice;
 
   int tmp_priority = div_real_int(recent_cpu, 4);
-  tmp_priority = -round_real_to_int(sum_real_int(tmp_priority, PRI_MAX - (nice * 2)));
+  // floor the priority, needs changes
+  tmp_priority = -floor_real_to_int(diff_real_int(tmp_priority, PRI_MAX - (nice * 2)));
+  --tmp_priority;
+
   if (tmp_priority > PRI_MAX)
     tmp_priority = PRI_MAX;
   else if (tmp_priority < PRI_MIN)
@@ -225,7 +228,13 @@ thread_tick (void)
   /* MLFQS */
   if (thread_mlfqs) {
     if (t != idle_thread)
-	    t->mlfqs_recent_cpu = sum_real_int(t->mlfqs_recent_cpu, 1);
+      t->mlfqs_recent_cpu = sum_real_int(t->mlfqs_recent_cpu, 1);
+    /* priority recalculated once every fourth clock tick */
+    if (timer_ticks() % 4 == 0) {
+      /* try ready list priority update and then do sort */
+      thread_foreach(mlfqs_update_priority, NULL);
+      mlfqs_reorder_list();
+    }
     if (timer_ticks() % TIMER_FREQ == 0) { 
 	    /* load_avg update :
 		  load_avg = (59/60)*load_avg + (1/60)*ready_threads*/
@@ -241,11 +250,7 @@ thread_tick (void)
 		 
 		  /* recent_cpu update */
 		  thread_foreach(mlfqs_update_recent_cpu, NULL);
-		 
-		  /* try ready list priority update and then do sort */
-		  thread_foreach(mlfqs_update_priority, NULL);
-		  mlfqs_reorder_list();
-	  }
+    }
   }
   /****************************/
 
@@ -617,11 +622,15 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
-  t->orig_priority = priority;
-
-  t->mlfqs_recent_cpu = 0;
-  t->mlfqs_nice = 0;
+  if (!thread_mlfqs) {
+    t->priority = priority;
+    t->orig_priority = priority;
+  } else {
+    t->mlfqs_recent_cpu = 0;
+    t->mlfqs_nice = 0;
+    t->priority = mlfqs_calc_priority (t);
+    t->orig_priority = t->priority;
+  }
 
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
