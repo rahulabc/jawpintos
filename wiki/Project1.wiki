@@ -32,3 +32,4 @@
 = PROJECT BUGS =
    # priority scheduling: is the problem because we are using the same _elem_ element for both semaphore waiter list and ready list? 
    # For Nested Donation, we might want to add a list of locks that a thread is waiting on to the thread struct.
+   # Changes made at 7:50pm 04/12/10: priority calculation at thread initialization, priority recalculation every 4 clock ticks.
