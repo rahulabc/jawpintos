@@ -34,13 +34,16 @@ static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
 bool tick_compare (const struct list_elem *a,
-                  const struct list_elem *b, void *aux); 
+		   const struct list_elem *b, void *aux); 
+
+/* Semaphore element for sleeping threads. */
 struct sleep_sema_elem
-{
-  struct list_elem elem;
-  int wakeup_tick; // wake me up when this tick occurs
-  struct semaphore sema;
-};
+  {
+    struct list_elem elem;
+    int wakeup_tick;           /* wake me up when this tick occurs */
+    struct semaphore sema;     /* semaphore to signal the thread to
+				  wake up at wakeup_tick */
+  };
 
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
@@ -99,14 +102,16 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* ------------------------------------------------------------------------ */
-bool tick_compare(const struct list_elem *a,
-                  const struct list_elem *b, void *aux) 
+/* Comparison function for ticks. */
+bool 
+tick_compare(const struct list_elem *a,
+	     const struct list_elem *b, void *aux) 
 {
   ASSERT (aux==NULL);
   struct sleep_sema_elem *s1 = list_entry (a, struct sleep_sema_elem, elem);
   struct sleep_sema_elem *s2 = list_entry (b, struct sleep_sema_elem, elem);
-  if (s1->wakeup_tick < s2->wakeup_tick) return true;
+  if (s1->wakeup_tick < s2->wakeup_tick) 
+    return true;
   return false;
 }
                   
@@ -205,16 +210,20 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
   struct list_elem *e = list_begin (&wait_semas);
-  while (e != list_end (&wait_semas)) {
-    struct sleep_sema_elem* s = list_entry (e,struct sleep_sema_elem, elem);
-    if (s->wakeup_tick <= ticks) {  
-      e = list_remove (e);
-      sema_up (&s->sema);
-    } else { 
-      /* ordered list, so rest of elements are also not expired */
-      break;
-    } 
-  }
+  while (e != list_end (&wait_semas)) 
+    {
+      struct sleep_sema_elem* s = list_entry (e,struct sleep_sema_elem, elem);
+      if (s->wakeup_tick <= ticks) 
+	{  
+	  e = list_remove (e);
+	  sema_up (&s->sema);
+	} 
+      else 
+	{ 
+	  /* ordered list, so rest of elements are also not expired */
+	  break;
+	} 
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
