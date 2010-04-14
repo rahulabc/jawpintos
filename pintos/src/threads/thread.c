@@ -111,14 +111,18 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  if (!thread_mlfqs) { 
-    list_init (&ready_list); 
-  } else { 
-    int i = 0;
-    for (i = 0; i <= PRI_MAX; i++) {
-      list_init (&mlfqs_ready_list[i]);
+  if (!thread_mlfqs) 
+    { 
+      list_init (&ready_list); 
+    } 
+  else 
+    { 
+      int i = 0;
+      for (i = 0; i <= PRI_MAX; i++) 
+	{
+	  list_init (&mlfqs_ready_list[i]);
+	}
     }
-  }
   list_init (&all_list);
   
   /* Set up a thread structure for the running thread. */
@@ -173,7 +177,7 @@ mlfqs_calc_priority (const struct thread *t)
   
   /* floor the priority, needs changes */
   tmp_priority = -floor_real_to_int (diff_real_int (tmp_priority, 
-						           PRI_MAX - (nice * 2)));
+						    PRI_MAX - (nice * 2)));
   --tmp_priority;
 
   if (tmp_priority > PRI_MAX)
@@ -200,9 +204,10 @@ mlfqs_list_size (void)
 {
   int i; 
   int size = 0;
-  for (i = 0; i <= PRI_MAX; ++i) {
-    size += list_size (&mlfqs_ready_list[i]);
-  } 
+  for (i = 0; i <= PRI_MAX; ++i) 
+    {
+      size += list_size (&mlfqs_ready_list[i]);
+    } 
   return size;
 }
 
@@ -214,19 +219,24 @@ mlfqs_reorder_list (void)
   int i;
   ASSERT (intr_get_level () == INTR_OFF);
  
-  for (i = 0; i <= PRI_MAX; ++i) {
-    struct list_elem *e = list_begin (&mlfqs_ready_list[i]); 
+  for (i = 0; i <= PRI_MAX; ++i) 
+    {
+      struct list_elem *e = list_begin (&mlfqs_ready_list[i]); 
   
-    while (e != list_end (&mlfqs_ready_list[i])) {
-      struct thread *t = list_entry (e, struct thread, elem);
-      if (t->priority != i) {
-        e = list_remove (e);
-        list_push_back (&mlfqs_ready_list[t->priority], &t->elem); 
-      } else {
-         e = list_next (e);
-      }
+      while (e != list_end (&mlfqs_ready_list[i])) 
+	{
+	  struct thread *t = list_entry (e, struct thread, elem);
+	  if (t->priority != i) 
+	    {
+	      e = list_remove (e);
+	      list_push_back (&mlfqs_ready_list[t->priority], &t->elem); 
+	    } 
+	  else 
+	    {
+	      e = list_next (e);
+	    }
+	}
     }
-  }
 }
 
 /* Calculates the load average every second within the 
@@ -267,25 +277,27 @@ thread_tick (void)
     kernel_ticks++;
 
   /* MLFQS */
-  if (thread_mlfqs) {
-    if (t != idle_thread)
-      t->mlfqs_recent_cpu = sum_real_int (t->mlfqs_recent_cpu, 1);
+  if (thread_mlfqs) 
+    {
+      if (t != idle_thread)
+	t->mlfqs_recent_cpu = sum_real_int (t->mlfqs_recent_cpu, 1);
 
-    /* priority recalculated once every fourth clock tick */
-    if (timer_ticks () % 4 == 0) {
-      /* try ready list priority update and then do sort */
-      thread_foreach (mlfqs_update_priority, NULL);
-      mlfqs_reorder_list ();
+      /* priority recalculated once every fourth clock tick */
+      if (timer_ticks () % 4 == 0) 
+	{
+	  /* try ready list priority update and then do sort */
+	  thread_foreach (mlfqs_update_priority, NULL);
+	  mlfqs_reorder_list ();
+	}
+
+      if (timer_ticks () % TIMER_FREQ == 0) 
+	{   
+	  mlfqs_load_avg = mlfqs_calc_load_average (t);
+	  
+	  /* recent_cpu update */
+	  thread_foreach (mlfqs_update_recent_cpu, NULL);
+	}
     }
-
-    if (timer_ticks () % TIMER_FREQ == 0) {   
-
-      mlfqs_load_avg = mlfqs_calc_load_average (t);
-      
-      /* recent_cpu update */
-      thread_foreach (mlfqs_update_recent_cpu, NULL);
-    }
-  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -337,10 +349,11 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
 
   /* Initialize nice and recent cpu value.*/
-  if (thread_mlfqs) {
-    t->mlfqs_nice = thread_current()->mlfqs_nice;
-    t->mlfqs_recent_cpu = thread_current()->mlfqs_recent_cpu;
-  }
+  if (thread_mlfqs) 
+    {
+      t->mlfqs_nice = thread_current()->mlfqs_nice;
+      t->mlfqs_recent_cpu = thread_current()->mlfqs_recent_cpu;
+    }
 
   tid = t->tid = allocate_tid ();
 
@@ -405,17 +418,21 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  if (!thread_mlfqs)  {
-    list_sort (&ready_list, priority_compare, NULL);
-    list_insert_ordered (&ready_list, &t->elem, priority_compare, NULL);
-  } else {
-    list_push_back (&mlfqs_ready_list[t->priority], &t->elem);    
-  }
+  if (!thread_mlfqs)  
+    {
+      list_sort (&ready_list, priority_compare, NULL);
+      list_insert_ordered (&ready_list, &t->elem, priority_compare, NULL);
+    } 
+  else 
+    {
+      list_push_back (&mlfqs_ready_list[t->priority], &t->elem);    
+    }
 
   t->status = THREAD_READY;
-  if (thread_current () != idle_thread && !intr_context ()) {
-    thread_yield ();
-  }
+  if (thread_current () != idle_thread && !intr_context ()) 
+    {
+      thread_yield ();
+    }
   intr_set_level (old_level);
 }
 
@@ -484,13 +501,18 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) {
-    if (!thread_mlfqs) {
-      list_insert_ordered (&ready_list, &cur->elem, priority_compare, NULL);
-    } else {
-      list_push_back (&mlfqs_ready_list[cur->priority], &cur->elem);    
+  if (cur != idle_thread) 
+    {
+      if (!thread_mlfqs) 
+	{
+	  list_insert_ordered (&ready_list, &cur->elem, 
+			       priority_compare, NULL);
+	} 
+      else 
+	{
+	  list_push_back (&mlfqs_ready_list[cur->priority], &cur->elem);    
+	}
     }
-  }
 
   cur->status = THREAD_READY;
   schedule ();
@@ -570,7 +592,8 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void) 
 {
-  return round_real_to_int (mult_real_int (thread_current ()->mlfqs_recent_cpu, 100));
+  return round_real_to_int (mult_real_int (thread_current ()->mlfqs_recent_cpu, 
+					   100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -657,15 +680,18 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->blocking_lock = NULL;
-  if (!thread_mlfqs) {
-    t->priority = priority;
-    t->orig_priority = priority;
-  } else {
-    t->mlfqs_recent_cpu = 0;
-    t->mlfqs_nice = 0;
-    t->priority = mlfqs_calc_priority (t);
-    t->orig_priority = t->priority;
-  }
+  if (!thread_mlfqs) 
+    {
+      t->priority = priority;
+      t->orig_priority = priority;
+    } 
+  else 
+    {
+      t->mlfqs_recent_cpu = 0;
+      t->mlfqs_nice = 0;
+      t->priority = mlfqs_calc_priority (t);
+      t->orig_priority = t->priority;
+    }
 
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
@@ -691,10 +717,11 @@ bool
 mlfqs_list_empty (void) 
 {
   int i;
-  for (i = 0; i <= PRI_MAX; ++i) {
-    if (list_size (&mlfqs_ready_list[i]) > 0) 
-      return false;
-  }
+  for (i = 0; i <= PRI_MAX; ++i) 
+    {
+      if (list_size (&mlfqs_ready_list[i]) > 0) 
+	return false;
+    }
   return true;
 }
 
@@ -707,25 +734,32 @@ static struct thread *
 next_thread_to_run (void) 
 {
   struct thread *ret_t = NULL;
-  if (!thread_mlfqs) {
-    if (list_empty (&ready_list))
-      ret_t = idle_thread;
-    else 
-      ret_t = list_entry (list_pop_front (&ready_list), struct thread, elem);
-  } else {
-    if (mlfqs_list_empty()) {
-      ret_t = idle_thread;
-    } else { 
-      int i;
-      for (i = PRI_MAX; i>=0; --i) {
-        if (list_size (&mlfqs_ready_list[i]) > 0) {
-          ret_t = list_entry (list_pop_front (&mlfqs_ready_list[i]), 
-			      struct thread, elem);
-          break;
-        } 
-      } 
+  if (!thread_mlfqs) 
+    {
+      if (list_empty (&ready_list))
+	ret_t = idle_thread;
+      else 
+	ret_t = list_entry (list_pop_front (&ready_list), struct thread, elem);
     } 
-  } 
+  else 
+    {
+      if (mlfqs_list_empty()) 
+	{
+	  ret_t = idle_thread;
+	} 
+      else 
+	{ 
+	  int i;
+	  for (i = PRI_MAX; i>=0; --i) 
+	    {
+	      if (list_size (&mlfqs_ready_list[i]) > 0) {
+		ret_t = list_entry (list_pop_front (&mlfqs_ready_list[i]), 
+				    struct thread, elem);
+		break;
+	      } 
+	    } 
+	} 
+    } 
   ASSERT(ret_t!=NULL);
   return ret_t;
 }
@@ -817,11 +851,13 @@ allocate_tid (void)
 /* Comparison function for the threads' priorities */
 bool 
 priority_compare (const struct list_elem *a, 
-		  const struct list_elem *b, void *aux) {
+		  const struct list_elem *b, void *aux) 
+{
   ASSERT (aux==NULL);
   struct thread *t1 = list_entry (a, struct thread, elem);
   struct thread *t2 = list_entry (b, struct thread, elem);
-  if (t1->priority > t2->priority) return true;
+  if (t1->priority > t2->priority) 
+    return true;
   return false;
 }
 
