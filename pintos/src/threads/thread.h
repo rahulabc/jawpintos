@@ -88,17 +88,16 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int orig_priority;                  /* Priority that is originally
-   set. */
+    int orig_priority;                  /* Priority that is originally set. */
 
-    int mlfqs_nice;                     /* nice value for MLFQ */
+    int mlfqs_nice;                     /* nice value for MLFQS */
+    
     /* recent_cpu is a real number */
-    int mlfqs_recent_cpu;               /* recent_cpu for MLFQ */
+    int mlfqs_recent_cpu;               /* recent_cpu for MLFQS */
 
     struct list acquired_locks;         /* locks that this thread has acquired. */
 
-    struct lock *blocking_lock;         /* lock that this thread has been
-					   blocked by */
+    struct lock *blocking_lock;         /* lock that this thread has been blocked by */
 
     struct list_elem allelem;           /* List element for all threads list. */
 
