@@ -24,7 +24,12 @@ static int64_t ticks;
    Initialized by timer_calibrate (). */
 static unsigned loops_per_tick;
 
+/* Sorted list of semaphores for threads 
+   put to sleep */
 static struct list wait_semas;
+
+/* A global lock to synchronize insertion 
+   to wait_semas */
 static struct lock wait_semas_lock;
 
 static intr_handler_func timer_interrupt;
@@ -102,7 +107,9 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Comparison function for ticks. */
+/* Comparison function for ticks.
+   Returns true is tick value for the first argument is less
+   than the second argument */
 bool 
 tick_compare(const struct list_elem *a,
 	     const struct list_elem *b, void *aux) 
@@ -209,20 +216,25 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
-  struct list_elem *e = list_begin (&wait_semas);
-  while (e != list_end (&wait_semas)) 
+
+  if (lock_try_acquire (&wait_semas_lock))
     {
-      struct sleep_sema_elem* s = list_entry (e,struct sleep_sema_elem, elem);
-      if (s->wakeup_tick <= ticks) 
-	{  
-	  e = list_remove (e);
-	  sema_up (&s->sema);
-	} 
-      else 
-	{ 
-	  /* ordered list, so rest of elements are also not expired */
-	  break;
-	} 
+      struct list_elem *e = list_begin (&wait_semas);
+      while (e != list_end (&wait_semas)) 
+	{
+	  struct sleep_sema_elem* s = list_entry (e,struct sleep_sema_elem, elem);
+	  if (s->wakeup_tick <= ticks) 
+	    {  
+	      e = list_remove (e);
+	      sema_up (&s->sema);
+	    } 
+	  else 
+	    { 
+	      /* ordered list, so rest of elements are also not expired */
+	      break;
+	    } 
+	}
+      lock_release (&wait_semas_lock);
     }
 }
 
