@@ -33,3 +33,7 @@
    # priority scheduling: is the problem because we are using the same _elem_ element for both semaphore waiter list and ready list? 
    # For Nested Donation, we might want to add a list of locks that a thread is waiting on to the thread struct.
    # Changes made at 7:50pm 04/12/10: priority calculation at thread initialization, priority recalculation every 4 clock ticks.
+
+= DESIGNDOC =
+   # Alarm Clock
+      * We are locking(synchronizing) insertion into wait_semas list. Should we be locking pop from wait_semas as well? But pop is called within the timer interrupt. 
