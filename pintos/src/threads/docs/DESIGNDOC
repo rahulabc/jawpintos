@@ -30,46 +30,122 @@ Anand Madhavan <manand@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+***************************************************************************
+*****
+static struct list wait_semas;
+
+A sorted list of semaphores for threads put to sleep for timer interrupt
+to check for threads that need to wake up.
+
+*****
+static struct lock wait_semas_lock;
+
+A lock for wait_semas list access to synchronize insertion into the list.
+
+*****
+struct sleep_sema_elem
+  {
+    struct list_elem elem;
+    int wakeup_tick;		/* wake me up when this tick occurs */
+    struct semaphore sema;  	/* semaphore to signal the thread to 
+    	   	     		   wake up at wakeup_tick */
+  };
+
+A struct exclusively for semaphores used for putting threads to sleep.
+Contains a semaphore element and the time (tick) it is supposed to 
+wake up.
+***************************************************************************
 
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
-0. create a list for threads that wants to sleep.
-1. create a semaphore for each thread.
-2. record the tick # that the thread should wake up at.
-3. insert the semaphore in order of increasing tick
-4. wake up all the threads that have expired.
+***************************************************************************
+In our design, we start with a list of semaphores, wait_semas, for threads 
+put to sleep with its wake up time (tick) recorded.
+
+When timer_sleep is called, a semaphore is created and the tick it is 
+supposed to wake up at is recorded with the semaphore and combined as 
+a sleep_sema elem. 
+
+The element is inserted into wait_semas ordered by increasing wakeup_tick
+so that the timer interrupt can only check the front of the list if no
+thread is available to wake up.
+***************************************************************************
+
 
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
 
-- initially, we had number of ticks left, and decrement the count for each
-  tick.
-- Only the threads that have expired are checked in the interrupt handler.
+***************************************************************************
+Our initial design for the sleep_sema_elem struct recorded the number of 
+ticks left until wake up, which required decrementing of the count for
+each thread every time the timer interrupt is called.
+
+The amount of time spent in the timer interrupt was minimized by recording
+the tick to wake up instead of ticks left. With this change - and the 
+sorted list - the timer interrupt only has to check the front of wait_semas 
+if no thread is available to wake up. If N threads are ready, the
+frontmost N threads can be popped out of the list and woken up.
+***************************************************************************
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
 
-- lock access to the global semaphore list to keep the correct ordering of
-  'wake up ticks' when the semaphore element is being inserted into the
-  list.
+***************************************************************************
+As the description for the global lock wait_semas_lock presents, the lock
+is used to lock the access to the global semaphore list, wait_semas.
+
+When multiple threads call timer_sleep() simultaneously, only a single
+thread acquires wait_semas_lock each time it inserts its sleep_sema_elem
+into wait_semas list. Since the semaphores are inserted in order a single
+element at a time, the threads are always woken up in the correct order.
+
+Thus the race condition is resolved.
+***************************************************************************
 
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
 
-TODO: using a lock in interrupt handler fails
+***************************************************************************
+Race condition occurs when access to the list of sleeping threads, 
+wait_semas, is not controlled properly. In our design, the frontmost
+element of wait_semas list is checked each time the timer interrupt occurs
+and if the first N thread's sleep time have expired, it wakes the threads 
+by upping the corresponding semaphore and removing the element from 
+wait_semas list. 
 
-- try to acquire a lock in the timer interrupt before accessing the
-  waiting semaphore list. If it returns false, skip waking up the threads.
+We use lock_try_acquire to limit the access to wait_semas list for cases 
+where the timer interrupt is called within the critical section we have 
+locked inside timer_sleep (), i.e. where the sleep_sema_elem is inserted
+into wait_semas list. If lock_try_acquire () fails, it skips checking and
+accessing the wait_semas, thus preserving the previous state of the list.
+
+Hence, race condition does not occur from this scenario.
+***************************************************************************
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+***************************************************************************
+As discussed in Question A3, our initial design recorded remaining ticks 
+to wake-up instead of wake-up-tick. The current design is much better than
+previous because it reduces the number of instructions the timer interrupt
+has to handle tremendously, from linear to a constant. 
+
+The list of threads put to sleep, wait_semas, could have been replaced by 
+a more efficient data structure such as a heap since the OS involves
+insertion in order which takes O(log N) time. However, because we were 
+provided with linked list structure which is much more reliable than
+the code we may have produced, we chose safety over efficiency for
+data structure.
+***************************************************************************
+
 
              PRIORITY SCHEDULING
              ===================
