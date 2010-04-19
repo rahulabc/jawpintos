@@ -550,17 +550,12 @@ and adding a flag variable just doesn't seem right.
 >> inside and outside interrupt context likely to affect performance?
 
 ***************************************************************************
-Any instructions that can be performed outside an interrupt should always
-be placed outside the interrupt because of the performance. The number of 
-instructions that an interrupt can handle is limited because the timer
-interrupt has to be executed every tick. Thus it is crucial to make the
-number of instructions an interrupt executes to the minimum.
 
-Timer interrupt affects the performance more than other interrupts because
-it is executed thousands or more times every second. If unnecessary code
-that could be performed outside the interrupt is executed in the interrupt
-the redundant instructions are performend over and over again, eating
-up the limited CPU time allocated in between consecutive timer interrupts.
+The number of instructions that an interrupt can handle is limited 
+because the timer interrupt has to be executed every tick. Thus it is crucial 
+to make the number of instructions an interrupt executes to the minimum.
+Expensive computations should be avoided in interrupt handling code and 
+moved out. 
 
 Since thread instructions are executed in between these timer interrupts, 
 by reducing the number of instructions that the interrupt executes to a 
@@ -568,6 +563,7 @@ minimum, the performance gain is tremendous over long period of time,
 since the number of thread instructions executed in total increases by
 the number of instructions reduced in the timer interrupt multiplied by
 a very large number.
+ 
 ***************************************************************************
 
 ---- RATIONALE ----
@@ -578,6 +574,25 @@ a very large number.
 >> refine or improve your design?
 
 ***************************************************************************
+
+Despite reducing the number of updates through the entire list of threads
+to just once per 4 cycles and the updates on recent_cpu's to just once per
+second, our interrupt handler code currently still goes through the entire
+list of threads. This can get expensive if there are a large number of threads.
+ 
+One way to alleviate this problem might be to do the load_avg and the 
+recent_cpu updates outside of the handler and instead in the context switching
+portion (either in thread_block or thread_unblock). However depending on the
+number of threads there might be more context switches taking place between
+two ticks that this in itself might get more prohibitive than doing it in the
+interrupt handler. One way to deal with these two extremes might be dynamically
+decide where to update based on number of ready threads and the total threads. 
+
+If there are not that many threads in total (based on an empirically tuned 
+cutoff), we could just update it in the interrupt handler. If there are many 
+threads in total and not that many threads waiting, we know there are not going
+to be too many context switches and hence we can just update them in thread_block/
+thread_unblock.
 
 ***************************************************************************
 
