@@ -206,8 +206,7 @@ void
 lock_propagate_donation (struct lock *lock) 
 {
   if (lock->holder != NULL) 
-    {
-      
+    {      
       /* if my priority is higher than lock holder's priority, donate */
       struct thread *curr = thread_current ();
       if (curr->priority > lock->holder->priority)
@@ -216,7 +215,7 @@ lock_propagate_donation (struct lock *lock)
       struct thread *next_thread = lock->holder;
 
       while (next_thread->blocking_lock) 
-	{
+        {
 	  struct thread *h = next_thread->blocking_lock->holder;
 	  if (next_thread->priority > h->priority) 
 	    {

@@ -90,8 +90,6 @@ int mlfqs_list_size (void);
 void mlfqs_reorder_list (void);
 bool mlfqs_list_empty (void);
 
-
-
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -541,6 +539,9 @@ void
 thread_set_priority (int new_priority) 
 {
   struct thread *cur = thread_current ();
+  enum intr_level old_level;
+  old_level = intr_disable ();
+
   bool priority_donated = (cur->orig_priority != cur->priority);
   cur->orig_priority = new_priority;
   
@@ -549,6 +550,8 @@ thread_set_priority (int new_priority)
      and the actual priority is one that is donated */
   if ((!priority_donated) || (new_priority > cur->priority)) 
     cur->priority = new_priority;
+
+  intr_set_level (old_level);
   thread_yield ();
 }
 
