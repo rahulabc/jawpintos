@@ -156,15 +156,80 @@ data structure.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+***************************************************************************
+*****
+struct lock 
+  {
+    struct thread *holder;      /* Thread holding lock (for debugging). */
+    struct semaphore semaphore; /* Binary semaphore controlling access. */
+    struct list_elem elem;      /* List elem. */
+    struct semaphore acquire_semaphore; /* Semaphore for controlling
+					   acquire */
+  };
+
+struct semaphore acquire_semaphore;
+
+A semaphore that acts as a lock for priority donation to make a full 
+donation propagation to complete before another priority donation can 
+start.
+
+*****
+struct thread
+  {
+    /* Owned by thread.c. */
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+    int priority;                       /* Priority. */
+    int orig_priority;                  /* Priority that is originally set. */
+
+    int mlfqs_nice;                     /* nice value for MLFQS */
+    int mlfqs_recent_cpu;               /* recent_cpu for MLFQS */
+
+    struct list acquired_locks;         /* locks that this thread has acquired. */
+    struct lock *blocking_lock;         /* lock that this thread has been blocked by */
+
+    struct list_elem allelem;           /* List element for all threads list. */
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    uint32_t *pagedir;                  /* Page directory. */
+#endif
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
+
+struct list acquired_locks;
+
+A list of locks a thread has acquired to compute its donated priority
+after a lock has been released. Details in diagram for B2.
+
+struct lock *blocking_lock;
+
+The lock that a thread is blocked on so priority is recursively
+donated to the next level if current thread is blocked by a lock.
+***************************************************************************
+
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
+
+***************************************************************************
+The data structure is explained in the file 
+Prof1_B2_priority_donation_diagram.png in the same directory.
+***************************************************************************
 
 ---- ALGORITHMS ----
 
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
 
+***************************************************************************
 Semaphore: semaphore has a list of waiters that are threads in its 
 data structure. As semaphore's value comes down to zero and threads
 that reach the semaphore waits for "sema_up"s we add each thread
@@ -198,11 +263,20 @@ threads within the waiters' list. Hence, we made sure that the
 interrupts are turned off during the "list_sort", "list_pop_front", 
 and "thread_unblock" process so that they are transactional. 
 
-Condition variable: 
- 
+Condition variable: Internally, a wait on a condition varialbe is 
+also implemented by a semaphore. Like a lock, the semaphore contains
+a sorted list of threads ordered by priorities. When cond_signal ()
+is called, the thread with the highest priority is popped from the 
+waiters list of the semaphore. 
+
+Thus, all the synchronization schemes rely on the sortedness of the 
+semaphore's waiter list.
+***************************************************************************
+
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
 
+***************************************************************************
 We have noted in the assignment descriptions that we only have to 
 deal with priority donations regarding locks.
 
@@ -222,10 +296,12 @@ that of holder of lock B, priority is donated from the holder of lock A
 to the holder of lock B. The same process will happen recursively 
 until the holder of a lock down the chain is in a blocked status. 
 This recursive process handles nested priority donation well.   
+***************************************************************************
 
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
 
+***************************************************************************
 We have added three new variables to the data structures of thread
 and lock so that a lock knows which thread is holding it, a thread
 has a list of locks that it has acquired, and a thread remembers the
@@ -249,6 +325,7 @@ the list of waiters so that the waiter with the highest priority will
 be at the very front of the list, call "list_pop_front" to fetch the 
 thread with highest priority, and then unblock the thread. At this 
 moment, the CPU is likely to switch context to the thread just unblocked.
+***************************************************************************
 
 ---- SYNCHRONIZATION ----
 
@@ -256,6 +333,7 @@ moment, the CPU is likely to switch context to the thread just unblocked.
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
+***************************************************************************
 There indeed exists a potential race in the "thread_set_priority".
 Our version of "thread_set_priority" contains an if-statement that
 sets the actual priority to new_priority (argument of the function)
@@ -290,15 +368,17 @@ Our solution to this problem is disabling interrupts when we enter
 "thread_set_priority" and returning it to old level when we exit. 
 This way, CPU cannot switch context until the "thread_set_priority"
 function finishes.  
+***************************************************************************
 
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
 
+***************************************************************************
 We considered other designs in the process of implementing priority
 scheduling. However, we chose this design because of several reasons.
-
+***************************************************************************
 
               ADVANCED SCHEDULER
               ==================
@@ -308,6 +388,59 @@ scheduling. However, we chose this design because of several reasons.
 >> C1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+***************************************************************************
+*****
+static int mlfqs_load_avg;
+
+Global load average variable, which is a real number representation, that
+is updated every second.
+
+*****
+static struct list mlfqs_ready_list[PRI_MAX+1];
+
+The 64 ready queues for 64 different priorities ranging from 0 to 63.
+
+*****
+struct thread
+  {
+    /* Owned by thread.c. */
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+    int priority;                       /* Priority. */
+    int orig_priority;                  /* Priority that is originally set. */
+
+    int mlfqs_nice;                     /* nice value for MLFQS */
+    int mlfqs_recent_cpu;               /* recent_cpu for MLFQS */
+
+    struct list acquired_locks;         /* locks that this thread has acquired. */
+    struct lock *blocking_lock;         /* lock that this thread has been blocked by */
+
+    struct list_elem allelem;           /* List element for all threads list. */
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    uint32_t *pagedir;                  /* Page directory. */
+#endif
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
+
+int mlfqs_nice;
+
+Nice value of the thread ranging from -20 to 20.
+
+int mlfqs_recent_cpu;
+
+Recent CPU usage variable, which is a real number representation, updated
+each second.
+***************************************************************************
 
 ---- ALGORITHMS ----
 
@@ -319,23 +452,74 @@ scheduling. However, we chose this design because of several reasons.
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
- 0
- 4
- 8
-12
-16
-20
-24
-28
-32
-36
+ 0      0   0   0  63  61  59	     A 
+ 4	4   0	0  62  61  59	     A	
+ 8	8   0	0  61  61  59	     B
+12	8   4	0  61  60  59	     A
+16     12   4	0  60  60  59	     B
+20     12   8	0  60  59  59	     A
+24     16   8	0  59  59  59	     C
+28     16   8	4  59  59  58	     B
+32     16  12	4  59  58  58	     A
+36     20  12	4  58  58  58	     C
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
+***************************************************************************
+It is ambiguous if the recent_cpu value should be calculated at
+initialization or not. Right now recent_cpu is recalculated once every
+second. This is implemented by computing recent_cpu when
+(timer_ticks () % TIMER_FREQ == 0). So, it is possible that one of the 
+three threads be initialized at the moment when this condition is true. 
+Then recent_cpu of that thread is computed using the load average and its
+thread's nice value. For this scenario, if the timer interrupt occurred
+right after thread C was initialized, the above table changes like the
+following:
+
+timer  recent_cpu    priority   thread
+ticks   A   B   C   A   B   C   to run
+-----  --  --  --  --  --  --   ------
+ 0      0   0   2  63  61  58	     A 
+ 4	4   0	2  62  61  58	     A	
+ 8	8   0	2  61  61  58	     B
+12	8   4	2  61  60  58	     A
+16     12   4	2  60  60  58	     B
+20     12   8	2  60  59  58	     A
+24     16   8	2  59  59  58	     B
+28     16  12 	2  59  58  58	     A
+32     20  12	2  58  58  58	     C
+36     20  12	6  58  58  57	     B
+
+TODO: Do we want to resolve this issue? I don't think it is that
+necessary. There is something fishy about if (recent_cpu != 0), 
+and adding a flag variable just doesn't seem right.
+***************************************************************************
+
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
+
+***************************************************************************
+Any instructions that can be performed outside an interrupt should always
+be placed outside the interrupt because of the performance. The number of 
+instructions that an interrupt can handle is limited because the timer
+interrupt has to be executed every tick. Thus it is crucial to make the
+number of instructions an interrupt executes to the minimum.
+
+Timer interrupt affects the performance more than other interrupts because
+it is executed thousands or more times every second. If unnecessary code
+that could be performed outside the interrupt is executed in the interrupt
+the redundant instructions are performend over and over again, eating
+up the limited CPU time allocated in between consecutive timer interrupts.
+
+Since thread instructions are executed in between these timer interrupts, 
+by reducing the number of instructions that the interrupt executes to a 
+minimum, the performance gain is tremendous over long period of time, 
+since the number of thread instructions executed in total increases by
+the number of instructions reduced in the timer interrupt multiplied by
+a very large number.
+***************************************************************************
 
 ---- RATIONALE ----
 
@@ -343,6 +527,7 @@ ticks   A   B   C   A   B   C   to run
 >> disadvantages in your design choices.  If you were to have extra
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
+
 
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
@@ -374,4 +559,4 @@ the quarter.
 >> students, either for future quarters or the remaining projects?
 
 >> Any other comments?
-Testing
+
