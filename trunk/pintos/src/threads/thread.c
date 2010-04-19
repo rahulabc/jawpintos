@@ -173,7 +173,6 @@ mlfqs_calc_priority (const struct thread *t)
 
   int tmp_priority = div_real_int (recent_cpu, 4);
   
-  /* floor the priority, needs changes */
   tmp_priority = -floor_real_to_int (diff_real_int (tmp_priority, 
 						    PRI_MAX - (nice * 2)));
   --tmp_priority;
@@ -280,14 +279,7 @@ thread_tick (void)
       if (t != idle_thread)
 	t->mlfqs_recent_cpu = sum_real_int (t->mlfqs_recent_cpu, 1);
 
-      /* priority recalculated once every fourth clock tick */
-      if (timer_ticks () % 4 == 0) 
-	{
-	  /* try ready list priority update and then do sort */
-	  thread_foreach (mlfqs_update_priority, NULL);
-	  mlfqs_reorder_list ();
-	}
-
+      /* recent_cpu recalculated every second */
       if (timer_ticks () % TIMER_FREQ == 0) 
 	{   
 	  mlfqs_load_avg = mlfqs_calc_load_average (t);
@@ -295,6 +287,14 @@ thread_tick (void)
 	  /* recent_cpu update */
 	  thread_foreach (mlfqs_update_recent_cpu, NULL);
 	}
+
+      /* priority recalculated once every fourth clock tick */
+      if (timer_ticks () % 4 == 0) 
+	{
+	  /* try ready list priority update and then do sort */
+	  thread_foreach (mlfqs_update_priority, NULL);
+	  mlfqs_reorder_list ();
+	}      
     }
 
   /* Enforce preemption. */
