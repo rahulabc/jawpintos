@@ -182,6 +182,9 @@ struct lock
 					   acquire */
   };
 
+Each time a lock is acquired we use the above acquire_semaphore to control access
+to each lock.
+
 struct semaphore acquire_semaphore;
 
 A semaphore that acts as a lock for priority donation to make a full 
@@ -219,6 +222,15 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+orig_priority, acquired_locks, blocking_lock were added for impelementing 
+priority scheduling, priority donation and priority propagation. 
+
+orig_priority is the original priority set by external calls to set_priority. 
+acquired_locks keeps tracks of which locks this thread currently has acquired
+and blocking_lock is a pointer to the lock that the threaad is blocked on. 
+
+MLFQS related structures mlfqs_nice, mlfqs_recent_cpu were added (for Part C). 
+
 struct list acquired_locks;
 
 A list of locks a thread has acquired to compute its donated priority
@@ -235,7 +247,7 @@ donated to the next level if current thread is blocked by a lock.
 >> .png file.)
 
 ***************************************************************************
-The data structure is explained in the file 
+The data structure is explained along with diagrams in the file 
 Prof1_B2_priority_donation_diagram.png in the same directory.
 ***************************************************************************
 
@@ -251,8 +263,8 @@ that reach the semaphore waits for "sema_up"s we add each thread
 as they reach the semaphore's "sema_down" to the list of waiters
 using the function "list_insert_ordered" provided with our 
 comparison function that compares the priorities of the threads.
-We have stipulated in the comparison function so that threads 
-of higher priority will occur in the front of the waiters list and 
+We have stipulated in the comparison function that threads 
+are ordered from highest priority to lowest in the waiters list,
 so that when some other thread "sema_up"s this semaphore, our 
 usage of "list_pop_front" function will effectively wake up the 
 thread of the highest priority in the waiters list.
@@ -274,11 +286,11 @@ function is called to fetch the thread with the highest priority in
 waiters' list. The issue of synchronization comes into attention here
 because after the list is sorted through "list_sort" the CPU can 
 switch context and other priority donations might happen that involves
-threads within the waiters' list. Hence, we made sure that the 
-interrupts are turned off during the "list_sort", "list_pop_front", 
-and "thread_unblock" process so that they are transactional. 
+threads within the waiters' list. Hence, we use the existing protected
+section in "thread_unblock" (where interrupts are disabled) to modify
+and sort our list.
 
-Condition variable: Internally, a wait on a condition varialbe is 
+Condition variable: Internally, a wait on a condition variable is 
 also implemented by a semaphore. Like a lock, the semaphore contains
 a sorted list of threads ordered by priorities. When cond_signal ()
 is called, the thread with the highest priority is popped from the 
@@ -292,8 +304,8 @@ semaphore's waiter list.
 >> causes a priority donation.  How is nested donation handled?
 
 ***************************************************************************
-We have noted in the assignment descriptions that we only have to 
-deal with priority donations regarding locks.
+We have noted in the assignment description that we only have to 
+deal with priority donations relating to locks.
 
 The current thread will first have to pass through three ASSERT 
 statements and "sema_down" the acquire_semaphore in the lock 
@@ -569,6 +581,20 @@ a very large number.
 >> numbers, why did you do so?  If not, why not?
 
 ***************************************************************************
+We implemented fixed-point math in lib/reals.h and lib/reals.c. We were able
+to write separate tests for these and verify our implementation independent of 
+the rest of the code. We integrated the simple function calls into our code
+by including the header. The implementation included some non-obvious bit 
+manipulation that would have decreased the clarity of our code had we just
+implemented it in the thread code. So it was important to abstract it out
+ into a simple set of functions. Further, changing the internal fixed point
+representation (eg: exponent from 14 bits to say 16 bits) would have
+unnecessarily altered thread code when in fact it is change to the common
+representation of reals. Hence we used a separate set of functions.
+
+We could additionally have made these functions inline in lib/reals.h but 
+do not expect it to affect performance for this project purposes, so left
+the implementation as a separate c file for this project.
 
 ***************************************************************************
 
