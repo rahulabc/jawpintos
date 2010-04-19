@@ -406,16 +406,21 @@ function finishes.
 We considered other designs in the process of implementing priority
 scheduling. However, we chose this design because of several reasons.
 
-We considered using a binary tree in place of the "ready_list" of threads
-because it would yield faster for "list_insert_ordered" and we call
-"list_insert_ordered" frequently. However, we decided not to use binary
-tree for the "ready_list" because there could also be frequent calls to 
-priority donation and multiple, complex calls to priority donation will
-require restructuring of the binary tree and this would be costly. The
-cost of frequent restructuring of the binary tree would exceed the benefit
-of it being faster for "list_insert_ordered" and therefore, we chose
-to move forward with "ready_list" implemented with "list.h" in given
-files.
+We considered using a priority heap in place of the "ready_list" of threads 
+because it would be an O(lg n) structure (where n is the number of ordered
+elements in the structure) for inserting threads in the list, 
+instead of the O(n) list which now takes list_insert_ordered. The lack
+of dynamic memory allocation restricts any implenentation of our heap to 
+something similar to the list. However, contrasting the complexity with an 
+existing robust code in the form of lists, we chose to use the latter.
+
+Our current code is robust and relatively bug free and hence superior :)
+
+Given enough time, we would certainly pick a heap based implementation
+for all ordered lists that we use currently since we are only interested
+in the highest priority thread at any point (and not necessarily in the 
+entire sorting order, which causes an O(n) time currently).
+
 ***************************************************************************
 
               ADVANCED SCHEDULER
