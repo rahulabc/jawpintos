@@ -32,17 +32,22 @@ Anand Madhavan <manand@stanford.edu>
 
 ***************************************************************************
 *****
+/* Sorted list of semaphores for threads 
+   put to sleep */
 static struct list wait_semas;
 
 A sorted list of semaphores for threads put to sleep for timer interrupt
 to check for threads that need to wake up.
 
 *****
+/* A global lock to synchronize insertion 
+   to wait_semas */
 static struct lock wait_semas_lock;
 
 A lock for wait_semas list access to synchronize insertion into the list.
 
 *****
+/* Semaphore element for sleeping threads. */
 struct sleep_sema_elem
   {
     struct list_elem elem;
@@ -389,8 +394,6 @@ cost of frequent restructuring of the binary tree would exceed the benefit
 of it being faster for "list_insert_ordered" and therefore, we chose
 to move forward with "ready_list" implemented with "list.h" in given
 files.
-
-
 ***************************************************************************
 
               ADVANCED SCHEDULER
@@ -404,12 +407,14 @@ files.
 
 ***************************************************************************
 *****
+/* System-wide load average for MLFQS */
 static int mlfqs_load_avg;
 
 Global load average variable, which is a real number representation, that
 is updated every second.
 
 *****
+/* Ready list (Queue) for each priority */
 static struct list mlfqs_ready_list[PRI_MAX+1];
 
 The 64 ready queues for 64 different priorities ranging from 0 to 63.
@@ -448,6 +453,7 @@ struct thread
 int mlfqs_nice;
 
 Nice value of the thread ranging from -20 to 20.
+
 
 int mlfqs_recent_cpu;
 
@@ -541,6 +547,9 @@ a very large number.
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
 
+***************************************************************************
+
+***************************************************************************
 
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
@@ -548,6 +557,10 @@ a very large number.
 >> abstraction layer for fixed-point math, that is, an abstract data
 >> type and/or a set of functions or macros to manipulate fixed-point
 >> numbers, why did you do so?  If not, why not?
+
+***************************************************************************
+
+***************************************************************************
 
                SURVEY QUESTIONS
                ================
