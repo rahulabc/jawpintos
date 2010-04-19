@@ -553,7 +553,7 @@ and adding a flag variable just doesn't seem right.
 
 The number of instructions that an interrupt can handle is limited 
 because the timer interrupt has to be executed every tick. Thus it is crucial 
-to make the number of instructions an interrupt executes to the minimum.
+to keep the number of instructions an interrupt executes to a minimum.
 Expensive computations should be avoided in interrupt handling code and 
 moved out. 
 
