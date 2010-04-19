@@ -50,7 +50,7 @@ A lock for wait_semas list access to synchronize insertion into the list.
 /* Semaphore element for sleeping threads. */
 struct sleep_sema_elem
   {
-    struct list_elem elem;
+    struct list_elem elem;      /* for using the elements in wait_semas list */
     int wakeup_tick;		/* wake me up when this tick occurs */
     struct semaphore sema;  	/* semaphore to signal the thread to 
     	   	     		   wake up at wakeup_tick */
@@ -68,15 +68,15 @@ wake up.
 
 ***************************************************************************
 In our design, we start with a list of semaphores, wait_semas, for threads 
-put to sleep with its wake up time (tick) recorded.
+that were to be put to sleep with each of their 'time to be woken up' or 
+'wakeup_tick' recorded.
 
 When timer_sleep is called, a semaphore is created and the tick it is 
-supposed to wake up at is recorded with the semaphore and combined as 
+supposed to be woken up at is recorded with the semaphore and combined as 
 a sleep_sema elem. 
 
-The element is inserted into wait_semas ordered by increasing wakeup_tick
-so that the timer interrupt can only check the front of the list if no
-thread is available to wake up.
+This list is looked at in the timer_interrupt to determine which threads 
+are to be woken up.
 ***************************************************************************
 
 
@@ -89,10 +89,17 @@ ticks left until wake up, which required decrementing of the count for
 each thread every time the timer interrupt is called.
 
 The amount of time spent in the timer interrupt was minimized by recording
-the tick to wake up instead of ticks left. With this change - and the 
-sorted list - the timer interrupt only has to check the front of wait_semas 
-if no thread is available to wake up. If N threads are ready, the
-frontmost N threads can be popped out of the list and woken up.
+the tick to wake up instead of ticks left. This is put in the element and 
+the element is inserted into wait_semas ordered by increasing wakeup_tick.
+
+This helps in an efficient implementation of the 'waking up' of the threads. 
+The timer interrupt can now just go through the elements in increasing order
+of wakeup_tick, waking each thread up that was to be woken up at the current 
+(or past) tick. It wakes each of them up until it reaches a thread that is 
+to be woken up in the future (all subsequent threads can be assumed to be 
+required to woken up only in the future since the elements of the list are 
+ordered by this wake up time) and we can perform an efficient early exit.
+
 ***************************************************************************
 
 ---- SYNCHRONIZATION ----
@@ -101,13 +108,16 @@ frontmost N threads can be popped out of the list and woken up.
 >> timer_sleep() simultaneously?
 
 ***************************************************************************
-As the description for the global lock wait_semas_lock presents, the lock
+As the description for the global lock wait_semas_lock describes, the lock
 is used to lock the access to the global semaphore list, wait_semas.
 
 When multiple threads call timer_sleep() simultaneously, only a single
 thread acquires wait_semas_lock each time it inserts its sleep_sema_elem
 into wait_semas list. Since the semaphores are inserted in order a single
 element at a time, the threads are always woken up in the correct order.
+
+We keep the critical section minimal by surrounding just the 
+list_insert_ordered function with the lock acquisition and release.
 
 Thus the race condition is resolved.
 ***************************************************************************
@@ -140,17 +150,17 @@ Hence, race condition does not occur from this scenario.
 ***************************************************************************
 As discussed in Question A3, our initial design recorded remaining ticks 
 to wake-up instead of wake-up-tick. The current design is much better than
-previous because it reduces the number of instructions the timer interrupt
-has to handle tremendously, from linear to a constant. 
+our previous version because it reduced the number of instructions the 
+timer interrupt has to handle tremendously, from linear to a constant. 
 
 The list of threads put to sleep, wait_semas, could have been replaced by 
-a more efficient data structure such as a heap since the OS involves
+a more efficient data structure such as a heap since it involves
 insertion in order which takes O(log N) time. However, because we were 
-provided with linked list structure which is much more reliable than
-the code we may have produced, we chose safety over efficiency for
-data structure.
-***************************************************************************
+provided with linked list structure which we assume has been tested and tried
+over time, and hence more reliable (and simple) than the code we may have 
+produced, we chose code robustness over efficiency for this data structure.
 
+***************************************************************************
 
              PRIORITY SCHEDULING
              ===================
