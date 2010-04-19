@@ -165,11 +165,90 @@ data structure.
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
 
+Semaphore: semaphore has a list of waiters that are threads in its 
+data structure. As semaphore's value comes down to zero and threads
+that reach the semaphore waits for "sema_up"s we add each thread
+as they reach the semaphore's "sema_down" to the list of waiters
+using the function "list_insert_ordered" provided with our 
+comparison function that compares the priorities of the threads.
+We have stipulated in the comparison function so that threads 
+of higher priority will occur in the front of the waiters list and 
+so that when some other thread "sema_up"s this semaphore, our 
+usage of "list_pop_front" function will effectively wake up the 
+thread of the highest priority in the waiters list.
+
+Lock: lock is basically a semaphore with the value of 1. Hence, the 
+lock data structure contains a semaphore and this semaphore will 
+have a list of threads that are waiting for the next "sema_up". 
+Again, threads that reach the semaphore of the lock when the
+semaphore's value is zero is added to the list of threads (waiters)
+with the function "list_insert_ordered" with the comparison function
+that compares priorities of threads. Upon a "sema_up" the thread
+at the very front of the list will be woken up by the function 
+"list_pop_front" and "thread_unblock". 
+
+Note: however, we cannot ensure the "sortedness" of the waiters list
+when priority donation is active. Therefore, we have arranged it so
+that the list of waiters is sorted just before the "list_pop_front"
+function is called to fetch the thread with the highest priority in 
+waiters' list. The issue of synchronization comes into attention here
+because after the list is sorted through "list_sort" the CPU can 
+switch context and other priority donations might happen that involves
+threads within the waiters' list. Hence, we made sure that the 
+interrupts are turned off during the "list_sort", "list_pop_front", 
+and "thread_unblock" process so that they are transactional. 
+
+Condition variable: 
+ 
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
 
+We have noted in the assignment descriptions that we only have to 
+deal with priority donations regarding locks.
+
+The current thread will first have to pass through three ASSERT 
+statements and "sema_down" the acquire_semaphore in the lock 
+structure. Acquire_semaphore is a synchronization measure we have 
+added to the lock data structure so that priority donations that 
+propagate from this lock happens atomically. This will ensure that 
+donation of priorities happen in a synchronized manner. Then the 
+current thread will go into the function "lock_propagate_donation" and 
+donate priority to the holder of this lock, say lock A, if it has 
+higher priority than the holder of this lock. 
+
+If the holder lock A is also blocked by some other lock, say lock B, 
+and if priority of the holder of lock A is higher than 
+that of holder of lock B, priority is donated from the holder of lock A
+to the holder of lock B. The same process will happen recursively 
+until the holder of a lock down the chain is in a blocked status. 
+This recursive process handles nested priority donation well.   
+
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
+
+We have added three new variables to the data structures of thread
+and lock so that a lock knows which thread is holding it, a thread
+has a list of locks that it has acquired, and a thread remembers the
+original priority it had before any priority donations happened.
+
+When lock_release is called by the current thread, we first set the
+holder of this lock to NULL and remove this lock from the list of 
+locks acquired by the current thread. Then by iterating through the
+list of locks still acquired by the current thread, we determine 
+the consequent priority value for the current thread after release 
+of this lock. This process is to make sure that since priorities could
+have been donated by waiters of other locks that the current thread 
+holds, even after the current thread releases this lock, it cannot 
+return straight to the original priority (before any donations) it had
+but it has to return to the highest priority donated by waiters of 
+other locks it holds. 
+
+After priority value has been determined, we call "sema_up" function 
+for this lock's semaphore, which will first disable interrupts, sort 
+the list of waiters so that the waiter with the highest priority will 
+be at the very front of the list, call "list_pop_front" to fetch the 
+thread with highest priority, and then unblock the thread. At this 
+moment, the CPU is likely to switch context to the thread just unblocked.
 
 ---- SYNCHRONIZATION ----
 
@@ -177,10 +256,49 @@ data structure.
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
+There indeed exists a potential race in the "thread_set_priority".
+Our version of "thread_set_priority" contains an if-statement that
+sets the actual priority to new_priority (argument of the function)
+only if new_priority is higher than the current actual priority of the
+current thread. The CPU can switch context right at the moment when 
+thread A passes the test conditions of the if-statement (line 551) 
+and enters the if-statement body but has not executed any statements.
+Then, the thread to which the CPU has changed context, say thread B, 
+can donate priority to thread A and then change context back to 
+thread A. Then, the conditions of the if-statement does not hold any 
+more but we have already entered the body of the if-statement with 
+thread A. Thread A's actual priority might be higher than the 
+new_priority but it is still set to the new_priority where it should 
+not have. Therefore, we can see that such race condition can 
+perturb the priorities of threads if "thread_set_priority" is not 
+synchronized. 
+
+We believe that a lock cannot be used to synchronize "thread_set_
+priority" because it could lead to a deadlock situation. If we create
+a lock for priority values of a thread in order to avoid above race
+condition, we can find ourselves in the below undesirable situation.
+Thread A calls "thread_set_priority" and acquires the lock for 
+its priority values. In the middle of the function, CPU switches context
+to thread B, a thread with higher priority. Thread B is blocked by some 
+other lock that thread A holds and tries to donate priority to thread A
+but it is blocked again by the lock for thread A's priority values.
+Priority donation cannot happen and many other threads exist in 
+the system so CPU does not switch to thread A quickly. We find ourselves
+in a deadlock situation. 
+
+Our solution to this problem is disabling interrupts when we enter
+"thread_set_priority" and returning it to old level when we exit. 
+This way, CPU cannot switch context until the "thread_set_priority"
+function finishes.  
+
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+We considered other designs in the process of implementing priority
+scheduling. However, we chose this design because of several reasons.
+
 
               ADVANCED SCHEDULER
               ==================
