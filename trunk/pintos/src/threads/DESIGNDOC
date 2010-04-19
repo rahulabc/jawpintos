@@ -493,10 +493,11 @@ each second.
 Note that since we are only interested in the 36 ticks below, and since 
 we update the recent_cpu with load_avg information only every second, 
 we only need to increment the recent_cpu of the running thread below.
-We also assume that no threads are blocked on any resource. Also since 
-priority is updated only every fourth clock tick, there is no reason for 
-a context switch and we can assume that a thread continues to run for 
-all the four ticks.
+We also assume that no threads are blocked on any resource. Also note
+that we update priorities every fourth clock tick and recent_cpu
+every tick as specified in the 4.4 BSD Scheduler documentation.
+
+In case of priority ties, context is changed in round-robin fashion.
 
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
@@ -504,46 +505,157 @@ ticks   A   B   C   A   B   C   to run
  0      0   0   0  63  61  59	     A 
  4	4   0	0  62  61  59	     A	
  8	8   0	0  61  61  59	     B
-12	8   4	0  61  60  59	     A
+12     10   2	0  60  60  59	     B
 16     12   4	0  60  60  59	     B
-20     12   8	0  60  59  59	     A
-24     16   8	0  59  59  59	     C
-28     16   8	4  59  59  58	     B
-32     16  12	4  59  58  58	     A
-36     20  12	4  58  58  58	     C
+20     14   6	0  59  59  59	     C
+24     15   7	2  59  59  58	     B
+28     17   9	2  58  58  58	     C
+32     18  10	4  58  58  58	     B
+36     19  12	5  58  58  57	     A
+
+Below table is an elaboration of the above where at each tick
+we update the recent_cpu's.
+
+timer  recent_cpu    priority   thread
+ticks   A   B   C   A   B   C   to run
+-----  --  --  --  --  --  --   ------
+ 0      0   0   0  63  61  59	     A 
+
+ 1	1   0	0  63  61  59	     A
+ 2	2   0	0  63  61  59	     A
+ 3	3   0	0  63  61  59	     A
+ 4	4   0	0  62  61  59	     A	
+
+ 5	5   0	0  62  61  59	     A
+ 6	6   0	0  62  61  59	     A
+ 7	7   0	0  62  61  59	     A
+ 8	8   0	0  61  61  59	     B
+
+ 9	8   1	0  61  61  59	     A
+10	9   1	0  61  61  59	     B
+11     	9   2	0  61  61  59	     A
+12     10   2	0  60  60  59	     B
+
+13     10   3	0  60  60  59	     A
+14     11   3	0  60  60  59	     B
+15     11   4	0  60  60  59	     A
+16     12   4	0  60  60  59	     B
+
+17     12   5	0  60  60  59	     A
+18     13   5	0  60  60  59	     B
+19     13   6	0  60  60  59	     A
+20     14   6	0  59  59  59	     C
+
+21     14   6	1  59  59  59	     B
+22     14   7	1  59  59  59	     A
+23     15   7	1  59  59  59	     C
+24     15   7	2  59  59  58	     B
+
+25     15   8	2  59  59  58	     A
+26     16   8	2  59  59  58	     B
+27     16   9	2  59  59  58	     A
+28     17   9	2  58  58  58	     C
+
+29     17   9	3  58  58  58	     B
+30     17  10	3  58  58  58	     A
+31     18  10	3  58  58  58	     C
+32     18  10	4  58  58  58	     B
+
+33     18  11	4  58  58  58	     A
+34     19  11	4  58  58  58 	     C
+35     19  11	5  58  58  58	     B
+36     19  12	5  58  58  57	     A
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
 ***************************************************************************
-It is ambiguous if the recent_cpu value should be calculated at
-initialization or not. Right now recent_cpu is recalculated once every
-second. This is implemented by computing recent_cpu when
-(timer_ticks () % TIMER_FREQ == 0). So, it is possible that one of the 
-three threads be initialized at the moment when this condition is true. 
-Then recent_cpu of that thread is computed using the load average and its
-thread's nice value. For this scenario, if the timer interrupt occurred
-right after thread C was initialized, the above table changes like the
-following:
+The table values can change based on when the recent_cpu recalculation
+with load average and nice value is performed. Generally, the
+recalculation can happen anytime after a thread is created. 
+
+For example, if the condition (timer_ticks () % TIMER_FREQ == 0) were
+true right after the three threads were created, the recent_cpu's would
+have been updated by the formula, 
+   recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice.
+The table in this scenario is the one shown below.
 
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
- 0      0   0   2  63  61  58	     A 
- 4	4   0	2  62  61  58	     A	
- 8	8   0	2  61  61  58	     B
-12	8   4	2  61  60  58	     A
-16     12   4	2  60  60  58	     B
-20     12   8	2  60  59  58	     A
-24     16   8	2  59  59  58	     B
-28     16  12 	2  59  58  58	     A
-32     20  12	2  58  58  58	     C
-36     20  12	6  58  58  57	     B
+ 0      0   1   2  63  60  58	     A
+ 4	4   1	2  62  60  58	     A
+ 8	8   1	2  61  60  58	     A
+12     12   1	2  60  60  58	     B
+16     14   3	2  59  60  58	     B
+20     14   7	2  59  59  58	     A
+24     16   9	2  59  58  58	     A
+28     20   9	2  58  58  58	     C
+32     21  10	4  57  58  58	     B
+36     21  12	6  57  58  57	     B
 
-TODO: Do we want to resolve this issue? I don't think it is that
-necessary. There is something fishy about if (recent_cpu != 0), 
-and adding a flag variable just doesn't seem right.
+The work done to fill in the table is shown at the end of this question.
+
+Because a thread may be create at any point of time within a second, 
+and it is not critical to keep an individual clock tick counter for each
+thread, our design uses a simple rule of updating whenever the condition
+(timer_ticks () % TIMER_FREQ == 0) is true. Thus, it is not guaranteed
+that whenever three threads A,B, and C starts simultaneously the 
+recent_cpu and priority values would follow that of the table in part 
+C2. However, since the overall behavior is not much different from the
+expected, the uncertainty can be ignored.
+
+timer  recent_cpu    priority   thread
+ticks   A   B   C   A   B   C   to run
+-----  --  --  --  --  --  --   ------
+ 0      0   1   2  63  60  58	     A
+
+ 1	1   1	2  63  60  58	     A
+ 2	2   1	2  63  60  58	     A
+ 3	3   1	2  63  60  58	     A
+ 4	4   1	2  62  60  58	     A
+
+ 5	5   1	2  62  60  58	     A
+ 6	6   1	2  62  60  58	     A
+ 7	7   1	2  62  60  58	     A
+ 8	8   1	2  61  60  58	     A
+
+ 9	9   1	2  61  60  58	     A
+10     10   1	2  61  60  58	     A
+11     11   1	2  61  60  58	     A
+12     12   1	2  60  60  58	     B
+
+13     12   2	2  60  60  58	     A
+14     13   2	2  60  60  58	     B
+15     13   3	2  60  60  58	     A
+16     14   3	2  59  60  58	     B
+
+17     14   4	2  59  60  58	     B
+18     14   5	2  59  60  58	     B
+19     14   6	2  59  60  58	     B
+20     14   7	2  59  59  58	     A
+
+21     15   7	2  59  59  58	     B
+22     15   8	2  59  59  58	     A
+23     16   8	2  59  59  58	     B
+24     16   9	2  59  58  58	     A
+
+25     17   9	2  59  58  58	     A
+26     18   9	2  59  58  58	     A
+27     19   9	2  59  58  58	     A
+28     20   9	2  58  58  58	     C
+
+29     20   9	3  58  58  58	     B
+30     20  10	3  58  58  58	     A
+31     21  10	3  58  58  58	     C
+32     21  10	4  57  58  58	     B
+
+33     21  11	4  57  58  58	     C
+34     21  11	5  57  58  58	     B
+35     21  12	5  57  58  58	     C
+36     21  12	6  57  58  57	     B
+
 ***************************************************************************
 
 >> C4: How is the way you divided the cost of scheduling between code
