@@ -490,6 +490,14 @@ each second.
 >> scheduling decision and the priority and recent_cpu values for each
 >> thread after each given number of timer ticks:
 
+Note that since we are only interested in the 36 ticks below, and since 
+we update the recent_cpu with load_avg information only every second, 
+we only need to increment the recent_cpu of the running thread below.
+We also assume that no threads are blocked on any resource. Also since 
+priority is updated only every fourth clock tick, there is no reason for 
+a context switch and we can assume that a thread continues to run for 
+all the four ticks.
+
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
