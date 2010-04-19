@@ -378,6 +378,19 @@ function finishes.
 ***************************************************************************
 We considered other designs in the process of implementing priority
 scheduling. However, we chose this design because of several reasons.
+
+We considered using a binary tree in place of the "ready_list" of threads
+because it would yield faster for "list_insert_ordered" and we call
+"list_insert_ordered" frequently. However, we decided not to use binary
+tree for the "ready_list" because there could also be frequent calls to 
+priority donation and multiple, complex calls to priority donation will
+require restructuring of the binary tree and this would be costly. The
+cost of frequent restructuring of the binary tree would exceed the benefit
+of it being faster for "list_insert_ordered" and therefore, we chose
+to move forward with "ready_list" implemented with "list.h" in given
+files.
+
+
 ***************************************************************************
 
               ADVANCED SCHEDULER
