@@ -1,1 +1,68 @@
 = Section 04/23/10 =
+
+* Read through DESIGNDOC before implementing
+* Can use malloc, if returns NULL, kill the user program, do not panic
+* synchronizations in case of thread block/unblock.
+
+* Project 3 & 4 will build on Project 2.
+
+* example
+   # shell parses user input
+   # shell calls fork() and execve("cp", argv, env)
+   # cp uses file system interface to copy files
+   # cp may print messages to stdout
+   # cp exits
+
+   * These interactions require system calls
+
+* Syscall handler
+   # syscalls provide the interface btw a user process and the OS
+   # Popular syscalls: open, read, write, wait, exec, exit...
+
+* User programs in Pintos
+   * threads/init.c
+   # main() => run_actions(Argv) after booting
+   # run_actions => run_task(argv)
+      * the task to run is argv[1]
+   # run_task => process_wait(process_Execute(task))
+
+   *userprog/process.c
+   # process_execute creates a thread that runs start_process(filename...) => load(filename...)
+   # load sets up the stack, data, and code, as well as the start address
+
+* Project 2 requirements
+   # passing command-line arguments to programs  
+   # safe memory access (bad pointer derefs)
+   # a set of system calls
+      * Long list, in section 3.3.4 of the Pintos docs
+   # process termination messages
+   # denying writes to files in use as executables
+
+* Argument passing
+   # before a user program starts executing, ther kernel must push the functions arguments onto the stack.
+   # This involves breaking the command-line input into individual words.
+   # Implement the string parsing however you like
+      * docs say to extend process_execute() to do this, but you may place the logic...
+
+* Safe memory access
+   # The kernel will often access memory through user-provided pointers
+   # These pointers can be problematic:
+      * null pointers, pointers to unmapped user virtual memory, or pointers to kernel addresses
+      * If a user process passes these to the kernel, you must kill the process ...
+
+   * Two approaches
+      # verify every user pointer before dereference 
+         * is it in the user's address space, i.e. below PHYS_BASE? (look at is_user_vaddr)
+         * mapped? (look at pagedir_get_page())
+         * these checks apply to buffers/strings as well
+
+      # modify fault handler in userprog/exception.c
+         * only check that a user pointer is below PHYS_BASE
+         * Invalid pointers will trigger a page fault
+         * Better performance, takes advantage of hardware MMU
+         * See 3.1.5 [Accessing User Memory] for more details
+
+* USE SYNCHRONIZATION!
+
+* Suggested initial strategy
+   # make a disk and add a few programs (like args*-)
