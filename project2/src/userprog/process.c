@@ -40,7 +40,7 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-
+  
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -48,8 +48,15 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  char *exec_name = (char *) malloc ( (strlen(file_name) + 1) * sizeof (char));
+  strlcpy (exec_name, file_name, strlen (file_name) + 1);
+  char *save_ptr;
+  strtok_r (exec_name, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (exec_name, PRI_DEFAULT, start_process, fn_copy);
+
+  free (fn_copy2);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -127,7 +134,7 @@ start_process (void *file_name_)
   bool success;
 
   /* copy the whole command line input */
-  char cmd_in [strlen (file_name) + 1];
+  char *cmd_in = (char *) malloc ( (strlen(file_name) + 1) * sizeof (char));
   strlcpy (cmd_in, file_name, strlen (file_name) + 1);
 
   /* modify file_name to contain only the file name */
@@ -143,6 +150,8 @@ start_process (void *file_name_)
 
   /* push the program's initial arguments into the stack */
   push_arguments (&if_.esp, cmd_in);
+
+  free (cmd_in);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);   // CHECK: if file_name or cmd_in?
@@ -169,9 +178,9 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  while (true)
+  while (does_thread_exist (child_tid))
     ;
   return -1;
 }
