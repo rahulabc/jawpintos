@@ -10,13 +10,16 @@
 static void syscall_handler (struct intr_frame *);
 
 /* syscall functions */
-static void syscall_halt (void);
-static int syscall_read (int fd, void *buffer, unsigned length);
-static int syscall_write (int fd, const void *buffer, unsigned length);
-static void syscall_exit (int status);
+static void syscall_halt (struct intr_frame *f);
+static void syscall_exit (struct intr_frame *f);
+static void syscall_read (struct intr_frame *f);
+static void syscall_write (struct intr_frame *f);
+
+/* simple exit */
+static void syscall_simple_exit (struct intr_frame *f, int status);
 
 /* pointer validity */
-static bool syscall_invalid_ptr (const void *buffer);
+static bool syscall_invalid_ptr (const void *ptr);
 
 void
 syscall_init (void) 
@@ -25,25 +28,33 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_simple_exit (struct intr_frame *f, int status)
 {
+  printf("%s: exit(%d)\n", thread_name (), status);
+  thread_exit ();
+  f->eax = status;
+}
+
+static void
+syscall_handler (struct intr_frame *f) 
+{
+  if (syscall_invalid_ptr (f->esp))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+      
   int syscall_num = *((int *)f->esp);
-  //hex_dump ((int) f->esp, f->esp, 16, true); // REMOVEME:
+
   switch (syscall_num)
     {
-      int fd, status;
-      void *buffer;
-      unsigned length;
-
       case SYS_HALT:
         //printf("system call SYS_HALT!\n");
-        syscall_halt ();
+        syscall_halt (f);
         break;
       case SYS_EXIT:
         //      	printf("system call SYS_EXIT!\n");
-        status = *(int *)(f->esp + sizeof (int));
-        syscall_exit (status);
-        f->eax = status;
+	syscall_exit (f);
         break;
       case SYS_EXEC:
         printf("system call SYS_EXEC!\n");
@@ -65,17 +76,11 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
       case SYS_READ:
         printf ("system call SYS_READ!\n");
-        fd = *(int *) (f->esp + sizeof (int));
-        buffer = *(void **) (f->esp + 2 * sizeof (int));
-        length = *(int *) (f->esp + 2 * sizeof (int) + sizeof (void *));
-        f->eax = syscall_read (fd, buffer, length);
+	syscall_read (f);
         break;
       case SYS_WRITE:
         //	printf ("system call SYS_WRITE!\n");
-        fd = *(int *) (f->esp + sizeof (int));
-        buffer = *(void **) (f->esp + 2 * sizeof (int));
-        length = *(int *) (f->esp + 2 * sizeof (int) + sizeof (void *));
-        f->eax = syscall_write (fd, buffer, length);
+	syscall_write (f);
         break;
       case SYS_SEEK:
         printf("system call SYS_SEEK!\n");
@@ -94,45 +99,76 @@ syscall_handler (struct intr_frame *f UNUSED)
 }
 
 static void 
-syscall_halt (void)
+syscall_halt (struct intr_frame *f UNUSED)
 {
   shutdown_power_off ();
 }
 
-static int 
-syscall_read (int fd, void *buffer, unsigned length)
+static void 
+syscall_exit (struct intr_frame *f)
 {
-  if (syscall_invalid_ptr (buffer))
-    syscall_exit (-1);
-  ASSERT (fd != 1 && fd >= 0);
-  return length;
+  int status;
+  if (syscall_invalid_ptr (f->esp + sizeof (int)))
+    status = -1;
+  else 
+    status = *(int *) (f->esp + sizeof (int));
+  
+  syscall_simple_exit (f, status);
 }
 
-static int 
-syscall_write (int fd, const void *buffer, unsigned length)
-{
-  if (syscall_invalid_ptr (buffer))
-    syscall_exit (-1);
 
-  ASSERT (fd > 0);
-  if (fd == 1)
-    putbuf(buffer, length);
-  return length;
+static void
+syscall_read (struct intr_frame *f)
+{
+  if (syscall_invalid_ptr (f->esp + sizeof (int)) ||
+      syscall_invalid_ptr (f->esp + 2 * sizeof (int)) ||
+      syscall_invalid_ptr (f->esp + 2 * sizeof (int) +
+			   sizeof (void *)))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+
+  int fd = *(int *) (f->esp + sizeof (int));
+  void *buffer = *(void **) (f->esp + 2 * sizeof (int));
+  unsigned length = *(int *) (f->esp + 2 * sizeof (int) + 
+			      sizeof (void *));
+
+  ASSERT (fd != 1 && fd >= 0);
+  f->eax = length; // FIXME:
 }
 
 static void 
-syscall_exit (int status)
+syscall_write (struct intr_frame *f)
 {
-  printf("%s: exit(%d)\n", thread_name (), status);
-  thread_exit ();
+  if (syscall_invalid_ptr (f->esp + sizeof (int)) ||
+      syscall_invalid_ptr (f->esp + 2 * sizeof (int)) ||
+      syscall_invalid_ptr (f->esp + 2 * sizeof (int) +
+			   sizeof (void *)))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+
+  int fd = *(int *) (f->esp + sizeof (int));
+  const void *buffer = *(void **) (f->esp + 2 * sizeof (int));
+  unsigned length = *(int *) (f->esp + 2 * sizeof (int) + 
+			      sizeof (void *));
+  
+  ASSERT (fd > 0);
+
+  if (fd == 1)
+    putbuf(buffer, length);
+  f->eax = length; // FIXME:
 }
 
+
 static bool 
-syscall_invalid_ptr (const void *buffer)
+syscall_invalid_ptr (const void *ptr)
 {
-  if (!is_user_vaddr (buffer))
+  if (!is_user_vaddr (ptr))
     return true;
-  if (!pagedir_get_page (thread_current ()->pagedir, buffer))
+  if (!pagedir_get_page (thread_current ()->pagedir, ptr))
     return true;
   return false;
 }
