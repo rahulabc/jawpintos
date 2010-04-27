@@ -21,7 +21,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-static void push_arguments (void **esp, char *cmd_in);
+static bool push_arguments (void **esp, char *cmd_in);
 
 /* struct for arguments to be inserted into the list */
 struct argv_elem 
@@ -63,8 +63,12 @@ process_execute (const char *file_name)
 }
 
 /* push the initial arguments for user program to the stack */
-void push_arguments (void **esp, char *cmd_in)
+static bool 
+push_arguments (void **esp, char *cmd_in)
 {
+  /* checks to see if arguments fit in a single page */
+  int num_bytes_needed = 0;
+
   struct list argv_list;
   list_init (&argv_list);
  
@@ -76,15 +80,28 @@ void push_arguments (void **esp, char *cmd_in)
       struct argv_elem *new_arg = 
 	(struct argv_elem *) malloc (sizeof (struct argv_elem));
       new_arg->argv = token;
+
+      num_bytes_needed += strlen(token) + 1;
+      if (num_bytes_needed > PGSIZE)
+	return false;
+
       *esp -= strlen(token) + 1;
       new_arg->addr = *esp;
       list_push_back (&argv_list, &new_arg->elem);
       memcpy (*esp, (void *)token, strlen (token) + 1);
     }
-  
+
+  int argc = list_size (&argv_list);
+
   /* word-align */
   void *addr_aligned = (void *) ROUND_DOWN ((uint32_t) *esp, 4);
   int addr_diff = (int) (*esp) - (int) addr_aligned;
+  
+  num_bytes_needed += addr_diff + (argc + 1) * sizeof (char *) +
+    sizeof (char **) + sizeof (int) + sizeof (void *);
+  if (num_bytes_needed > PGSIZE)
+    return false;
+
   int i;
   int zero = 0;
   for (i = 0; i < addr_diff; ++i) 
@@ -92,12 +109,10 @@ void push_arguments (void **esp, char *cmd_in)
       *esp -= 1;
       memcpy (*esp, &zero, sizeof (uint8_t)); 
     }
-
+  
   /* sentinel */
   *esp -= sizeof (char *);
   memcpy (*esp, &zero, sizeof (char *));
-
-  int argc = list_size (&argv_list);
 
   /* argument adresses */
   struct list_elem *e;
@@ -122,6 +137,8 @@ void push_arguments (void **esp, char *cmd_in)
   /* return address */
   *esp -= sizeof (void *);
   memcpy (*esp, &zero, sizeof (void *));
+
+  return true;
 }
 
 /* A thread function that loads a user process and starts it
@@ -149,7 +166,7 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* push the program's initial arguments into the stack */
-  push_arguments (&if_.esp, cmd_in);
+  success = push_arguments (&if_.esp, cmd_in);
 
   free (cmd_in);
 
