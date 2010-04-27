@@ -36,60 +36,60 @@ syscall_handler (struct intr_frame *f UNUSED)
       unsigned length;
 
       case SYS_HALT:
-	//printf("system call SYS_HALT!\n");
-	syscall_halt ();
-	break;
+        //printf("system call SYS_HALT!\n");
+        syscall_halt ();
+        break;
       case SYS_EXIT:
-	//      	printf("system call SYS_EXIT!\n");
-	status = *(int *)(f->esp + sizeof (int));
-	syscall_exit (status);
-	f->eax = status;
-	break;
+        //      	printf("system call SYS_EXIT!\n");
+        status = *(int *)(f->esp + sizeof (int));
+        syscall_exit (status);
+        f->eax = status;
+        break;
       case SYS_EXEC:
-	printf("system call SYS_EXEC!\n");
-	break;
+        printf("system call SYS_EXEC!\n");
+        break;
       case SYS_WAIT:
-	printf("system call SYS_WAIT!\n");
-	break;
+        printf("system call SYS_WAIT!\n");
+        break;
       case SYS_CREATE:
-	printf("system call SYS_CREATE!\n");
-	break;
+        printf("system call SYS_CREATE!\n");
+        break;
       case SYS_REMOVE:
-	printf("system call SYS_REMOVE!\n");
-	break;
+        printf("system call SYS_REMOVE!\n");
+        break;
       case SYS_OPEN:
-	printf("system call SYS_OPEN!\n");
-	break;
+        printf("system call SYS_OPEN!\n");
+        break;
       case SYS_FILESIZE:
-	printf("system call SYS_FILESIZE!\n");
-	break;
+        printf("system call SYS_FILESIZE!\n");
+        break;
       case SYS_READ:
-	printf ("system call SYS_READ!\n");
-	fd = *(int *) (f->esp + sizeof (int));
-	buffer = *(void **) (f->esp + 2 * sizeof (int));
-	length = *(int *) (f->esp + 2 * sizeof (int) + sizeof (void *));
-	f->eax = syscall_read (fd, buffer, length);
-	break;
+        printf ("system call SYS_READ!\n");
+        fd = *(int *) (f->esp + sizeof (int));
+        buffer = *(void **) (f->esp + 2 * sizeof (int));
+        length = *(int *) (f->esp + 2 * sizeof (int) + sizeof (void *));
+        f->eax = syscall_read (fd, buffer, length);
+        break;
       case SYS_WRITE:
-	//	printf ("system call SYS_WRITE!\n");
-	fd = *(int *) (f->esp + sizeof (int));
-	buffer = *(void **) (f->esp + 2 * sizeof (int));
-	length = *(int *) (f->esp + 2 * sizeof (int) + sizeof (void *));
-	f->eax = syscall_write (fd, buffer, length);
-	break;
+        //	printf ("system call SYS_WRITE!\n");
+        fd = *(int *) (f->esp + sizeof (int));
+        buffer = *(void **) (f->esp + 2 * sizeof (int));
+        length = *(int *) (f->esp + 2 * sizeof (int) + sizeof (void *));
+        f->eax = syscall_write (fd, buffer, length);
+        break;
       case SYS_SEEK:
-	printf("system call SYS_SEEK!\n");
-	break;
+        printf("system call SYS_SEEK!\n");
+        break;
       case SYS_TELL:
-	printf("system call SYS_TELL!\n");
-	break;
+        printf("system call SYS_TELL!\n");
+        break;
       case SYS_CLOSE:
-	printf("system call SYS_CLOSE!\n");
-	break;
+        printf("system call SYS_CLOSE!\n");
+        break;
       default :
-	printf ("Invalid system call! #%d\n", syscall_num);
-	thread_exit ();
-	break;
+        printf ("Invalid system call! #%d\n", syscall_num);
+        thread_exit ();
+        break;
     }
 }
 
