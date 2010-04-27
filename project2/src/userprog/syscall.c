@@ -10,7 +10,7 @@
 #include "filesys/file.h"
 #include "threads/malloc.h"
 #include <list.h>
-
+#include "devices/input.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -93,15 +93,12 @@ syscall_handler (struct intr_frame *f)
 	syscall_open (f);
         break;
       case SYS_FILESIZE:
-	//       printf("system call SYS_FILESIZE!\n");
 	syscall_filesize (f);
         break;
       case SYS_READ:
-	//        printf ("system call SYS_READ!\n");
 	syscall_read (f);
         break;
       case SYS_WRITE:
-        //	printf ("system call SYS_WRITE!\n");
 	syscall_write (f);
         break;
       case SYS_SEEK:
@@ -307,8 +304,25 @@ syscall_write (struct intr_frame *f)
     }
 
   if (fd == STDOUT_FILENO)
-    putbuf(buffer, length);
-  f->eax = length; // FIXME:
+    {
+      putbuf(buffer, length);
+      f->eax = length;
+      return;
+    }
+
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
+       e = list_next (e)) 
+    {
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      if (f_elem->fd == fd) 
+	{
+	  f->eax = file_write (f_elem->file, buffer, length);
+	  return;
+	}
+    }
+  syscall_simple_exit (f, -1);
 }
 
 static void
