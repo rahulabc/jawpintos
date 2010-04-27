@@ -19,6 +19,7 @@ static void syscall_halt (struct intr_frame *f);
 static void syscall_exit (struct intr_frame *f);
 static void syscall_create (struct intr_frame *f);
 static void syscall_open (struct intr_frame *f);
+static void syscall_filesize (struct intr_frame *f);
 static void syscall_read (struct intr_frame *f);
 static void syscall_write (struct intr_frame *f);
 static void syscall_close (struct intr_frame *f);
@@ -92,7 +93,8 @@ syscall_handler (struct intr_frame *f)
 	syscall_open (f);
         break;
       case SYS_FILESIZE:
-        printf("system call SYS_FILESIZE!\n");
+	//       printf("system call SYS_FILESIZE!\n");
+	syscall_filesize (f);
         break;
       case SYS_READ:
 	//        printf ("system call SYS_READ!\n");
@@ -198,6 +200,18 @@ syscall_open (struct intr_frame *f)
 
   f->eax = fd;
   // need to release a lock
+}
+
+static void
+syscall_filesize (struct intr_frame *f)
+{
+  if (syscall_invalid_ptr (f->esp + sizeof (int)))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+  
+  int fd = *(int *) (f->esp + sizeof (int));
 }
 
 static void
