@@ -7,6 +7,10 @@
 #include "userprog/pagedir.h"
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "threads/malloc.h"
+#include <list.h>
+
 
 static void syscall_handler (struct intr_frame *);
 
@@ -17,6 +21,7 @@ static void syscall_create (struct intr_frame *f);
 static void syscall_open (struct intr_frame *f);
 static void syscall_read (struct intr_frame *f);
 static void syscall_write (struct intr_frame *f);
+static void syscall_close (struct intr_frame *f);
 
 /* simple exit */
 static void syscall_simple_exit (struct intr_frame *f, int status);
@@ -34,6 +39,20 @@ static void
 syscall_simple_exit (struct intr_frame *f, int status)
 {
   printf("%s: exit(%d)\n", thread_name (), status);
+
+  /* close all open file descriptors */
+  struct thread *t = thread_current ();
+ 
+  struct list_elem *e;
+  // Need a lock ?
+  while (!list_empty (&t->file_list))
+    {
+      e = list_pop_back (&t->file_list);
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      free (f_elem);
+    }
+  // Need to release the lock?
+
   thread_exit ();
   f->eax = status;
 }
@@ -52,11 +71,9 @@ syscall_handler (struct intr_frame *f)
   switch (syscall_num)
     {
       case SYS_HALT:
-        //printf("system call SYS_HALT!\n");
         syscall_halt (f);
         break;
       case SYS_EXIT:
-        //      	printf("system call SYS_EXIT!\n");
 	syscall_exit (f);
         break;
       case SYS_EXEC:
@@ -66,14 +83,12 @@ syscall_handler (struct intr_frame *f)
         printf("system call SYS_WAIT!\n");
         break;
       case SYS_CREATE:
-	//        printf("system call SYS_CREATE!\n");
 	syscall_create (f);
         break;
       case SYS_REMOVE:
         printf("system call SYS_REMOVE!\n");
         break;
       case SYS_OPEN:
-	//        printf("system call SYS_OPEN!\n");
 	syscall_open (f);
         break;
       case SYS_FILESIZE:
@@ -94,7 +109,7 @@ syscall_handler (struct intr_frame *f)
         printf("system call SYS_TELL!\n");
         break;
       case SYS_CLOSE:
-        printf("system call SYS_CLOSE!\n");
+	syscall_close (f);
         break;
       default :
         printf ("Invalid system call! #%d\n", syscall_num);
@@ -170,12 +185,19 @@ syscall_open (struct intr_frame *f)
   else
     fd = next_fd++;
 
+  struct thread *t = thread_current ();
+  struct file_elem *f_elem = (struct file_elem *) malloc (sizeof (struct file_elem));
+  ASSERT (f_elem);
+
+  f_elem->fd =fd;
+  f_elem->file = file;
+
+  // Need a lock
+  list_push_back (&t->file_list, &f_elem->elem);
+  // Need to release the lock
+
   f->eax = fd;
   // need to release a lock
-
-  // ADDME:
-  /* NEED TO KEEP A LIST OF FILES WITH THEIR FILE DESCRIPTORS */
-  /* LIST OF FILE DESCRIPTORS INSIDE A STRUCT TRHEAD? */
 }
 
 static void
@@ -237,6 +259,38 @@ syscall_write (struct intr_frame *f)
   if (fd == STDOUT_FILENO)
     putbuf(buffer, length);
   f->eax = length; // FIXME:
+}
+
+static void
+syscall_close (struct intr_frame *f)
+{
+  if (syscall_invalid_ptr (f->esp + sizeof (int)))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+
+  int fd = *(int *) (f->esp + sizeof (int));
+  
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  // Need a lock 
+  for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
+       e = list_next (e))
+    {
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      if (f_elem->fd == fd)
+	{
+	  file_close (f_elem->file);
+	  list_remove (e);
+	  free (f_elem);
+	  return;
+	}
+    }
+  
+  syscall_simple_exit (f, -1); // Need this?
+  // Need to release the lock
 }
 
 
