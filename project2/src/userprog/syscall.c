@@ -22,6 +22,8 @@ static void syscall_open (struct intr_frame *f);
 static void syscall_filesize (struct intr_frame *f);
 static void syscall_read (struct intr_frame *f);
 static void syscall_write (struct intr_frame *f);
+static void syscall_seek (struct intr_frame *f);
+static void syscall_tell (struct intr_frame *f);
 static void syscall_close (struct intr_frame *f);
 
 /* simple exit */
@@ -102,10 +104,10 @@ syscall_handler (struct intr_frame *f)
 	syscall_write (f);
         break;
       case SYS_SEEK:
-        printf("system call SYS_SEEK!\n");
+        syscall_seek (f);
         break;
       case SYS_TELL:
-        printf("system call SYS_TELL!\n");
+        syscall_tell (f);
         break;
       case SYS_CLOSE:
 	syscall_close (f);
@@ -321,6 +323,64 @@ syscall_write (struct intr_frame *f)
 	  f->eax = file_write (f_elem->file, buffer, length);
 	  return;
 	}
+    }
+  syscall_simple_exit (f, -1);
+}
+
+static void
+syscall_seek (struct intr_frame *f) 
+{
+  if (syscall_invalid_ptr (f->esp + sizeof (int)) ||
+      syscall_invalid_ptr (f->esp + 2 * sizeof (int)))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+
+  int fd = *(int *) (f->esp + sizeof (int));
+  unsigned position = *(int *) (f->esp + 2 * sizeof (int));
+
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  // Need a lock
+  for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
+       e = list_next (e))
+    {
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      if (f_elem->fd == fd)
+        {
+          file_seek (f_elem->file, position);
+          return;
+        }
+    }
+  syscall_simple_exit (f, -1);
+}
+
+static void 
+syscall_tell (struct intr_frame *f) 
+{
+  if (syscall_invalid_ptr (f->esp + sizeof (int)))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+
+  int fd = *(int *) (f->esp + sizeof (int));
+  
+  struct thread *t = thread_current ();
+
+  struct list_elem *e;
+  // Need a lock
+  for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
+       e = list_next (e))
+    {
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      if (f_elem->fd == fd)
+        {
+          f->eax = file_tell (f_elem->file);
+	  return;
+        }
     }
   syscall_simple_exit (f, -1);
 }
