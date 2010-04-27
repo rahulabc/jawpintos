@@ -17,9 +17,19 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static void push_arguments (void **esp, char *cmd_in);
+
+/* struct for arguments to be inserted into the list */
+struct argv_elem 
+  {
+    char *argv;
+    void *addr;
+    struct list_elem elem;
+  };
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -45,6 +55,68 @@ process_execute (const char *file_name)
   return tid;
 }
 
+/* push the initial arguments for user program to the stack */
+void push_arguments (void **esp, char *cmd_in)
+{
+  struct list argv_list;
+  list_init (&argv_list);
+ 
+  char *token, *save_ptr;
+  /* push arguments strings into stack */
+  for (token = strtok_r (cmd_in, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr))
+    {
+      struct argv_elem *new_arg = 
+	(struct argv_elem *) malloc (sizeof (struct argv_elem));
+      new_arg->argv = token;
+      *esp -= strlen(token) + 1;
+      new_arg->addr = *esp;
+      list_push_back (&argv_list, &new_arg->elem);
+      memcpy (*esp, (void *)token, strlen (token) + 1);
+    }
+  
+  /* word-align */
+  void *addr_aligned = (void *) ROUND_DOWN ((uint32_t) *esp, 4);
+  int addr_diff = (int) (*esp) - (int) addr_aligned;
+  int i;
+  int zero = 0;
+  for (i = 0; i < addr_diff; ++i) 
+    {
+      *esp -= 1;
+      memcpy (*esp, &zero, sizeof (uint8_t)); 
+    }
+
+  /* sentinel */
+  *esp -= sizeof (char *);
+  memcpy (*esp, &zero, sizeof (char *));
+
+  int argc = list_size (&argv_list);
+
+  /* argument adresses */
+  struct list_elem *e;
+  while (!list_empty (&argv_list))
+    {
+      e = list_pop_back (&argv_list);
+      struct argv_elem *a = list_entry (e, struct argv_elem, elem);
+      *esp -= sizeof (char *);
+      memcpy (*esp, &a->addr, sizeof (char *));
+      free (a);
+    }
+
+  /* argv */
+  void *tmp = *esp;
+  *esp -= sizeof (char **);
+  memcpy (*esp, &tmp, sizeof (char **));
+  
+  /* argc */
+  *esp -= sizeof (int);
+  memcpy (*esp, &argc, sizeof (int));
+  
+  /* return address */
+  *esp -= sizeof (void *);
+  memcpy (*esp, &zero, sizeof (void *));
+}
+
 /* A thread function that loads a user process and starts it
    running. */
 static void
@@ -54,6 +126,14 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  /* copy the whole command line input */
+  char cmd_in [strlen (file_name) + 1];
+  strlcpy (cmd_in, file_name, strlen (file_name) + 1);
+
+  /* modify file_name to contain only the file name */
+  char *save_ptr;
+  strtok_r (file_name, " ", &save_ptr);
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -61,8 +141,11 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  /* push the program's initial arguments into the stack */
+  push_arguments (&if_.esp, cmd_in);
+
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (file_name);   // CHECK: if file_name or cmd_in?
   if (!success) 
     thread_exit ();
 
@@ -88,6 +171,8 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  while (true)
+    ;
   return -1;
 }
 
