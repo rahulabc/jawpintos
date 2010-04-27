@@ -212,6 +212,19 @@ syscall_filesize (struct intr_frame *f)
     }
   
   int fd = *(int *) (f->esp + sizeof (int));
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
+       e = list_next (e)) 
+    {
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      if (f_elem->fd == fd) 
+	{
+	  f->eax = file_length (f_elem->file);
+	  return;
+	}
+    }
+  syscall_simple_exit (f, -1);
 }
 
 static void
@@ -241,7 +254,30 @@ syscall_read (struct intr_frame *f)
     }
 
   ASSERT (fd >= 0);
-  f->eax = length; // FIXME:
+  
+  if (fd == STDIN_FILENO) 
+    {
+      //NEED TO FIX INPUT_GETC AND WHAT TO RETURN
+      f->eax = input_getc ();
+      return;
+    }
+  
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+
+  //NEED TO LOCK THIS
+
+  for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
+       e = list_next (e)) 
+    {
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      if (f_elem->fd == fd) 
+	{
+	  f->eax = file_read (f_elem->file, buffer, length);
+	  return;
+	}
+    }
+  syscall_simple_exit (f, -1);
 }
 
 static void 
