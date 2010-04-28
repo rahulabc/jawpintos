@@ -104,6 +104,9 @@ struct thread
 
     /* File descriptor list */
     struct list file_list;
+
+    /* Child process (thread) list */
+    struct list children_list;
   };
 
 
