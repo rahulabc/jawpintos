@@ -77,6 +77,13 @@ syscall_simple_exit (struct intr_frame *f, int status)
       free (c_elem);
     }
   add_thread_to_exited_list (t->tid, status);
+  
+  // allow file write to executable...
+  if (t->exec_file) 
+    {
+      file_allow_write ( t->exec_file );
+      file_close ( t->exec_file );
+    }
   thread_exit ();
   f->eax = status;
 }

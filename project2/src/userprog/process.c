@@ -172,9 +172,9 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);   // CHECK: if file_name or cmd_in?
-  if (!success) 
+  if (!success)
     thread_exit ();
-
+  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -421,10 +421,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+  /* deny file writes until after process finishes. 
+     and close executable file when exiting */
+  t->exec_file = file;
+  file_deny_write (file);
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if (success == false) 
+    if (file) 
+      file_close (file);
   return success;
 }
 

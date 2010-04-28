@@ -110,6 +110,9 @@ struct thread
 
     /* Child threads waited on */
     struct list waited_children_list;
+
+    /* executable file so it can allow deny writes when in existence */
+    struct file *exec_file;
   };
 
 
