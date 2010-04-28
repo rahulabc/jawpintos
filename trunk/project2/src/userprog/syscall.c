@@ -21,6 +21,7 @@ static void syscall_exit (struct intr_frame *f, void *cur_sp);
 static void syscall_exec (struct intr_frame *f, void *cur_sp);
 static void syscall_wait (struct intr_frame *f, void *cur_sp);
 static void syscall_create (struct intr_frame *f, void *cur_sp);
+static void syscall_remove (struct intr_frame *f, void *cur_sp);
 static void syscall_open (struct intr_frame *f, void *cur_sp);
 static void syscall_filesize (struct intr_frame *f, void *cur_sp);
 static void syscall_read (struct intr_frame *f, void *cur_sp);
@@ -88,6 +89,16 @@ syscall_simple_exit (struct intr_frame *f, int status)
   f->eax = status;
 }
 
+#define MALLOC_AND_VALIDATE(f, var, size)   \
+({                                      \
+  var = (typeof(var)) malloc (size);    \
+  if (var == NULL)                      \
+     {                                  \
+       syscall_simple_exit (f, -1);     \
+       return;                          \
+     }                                  \
+})
+
 #define VALIDATE_AND_GET_ARG(cur_sp,var,f)   \
 ({ if (syscall_invalid_ptr (cur_sp))         \
      {					     \
@@ -124,7 +135,7 @@ syscall_handler (struct intr_frame *f)
 	syscall_create (f, cur_sp);
         break;
       case SYS_REMOVE:
-        printf("system call SYS_REMOVE!\n");
+        syscall_remove (f, cur_sp);
         break;
       case SYS_OPEN:
 	syscall_open (f, cur_sp);
@@ -189,9 +200,8 @@ syscall_exec (struct intr_frame *f, void *cur_sp)
     }
 
   struct thread *t = thread_current ();
-  struct child_elem *c_elem = (struct child_elem *) malloc (sizeof 
-							    (struct child_elem));
-  ASSERT (c_elem);
+  struct child_elem *c_elem;
+  MALLOC_AND_VALIDATE(f, c_elem, sizeof (struct child_elem)); 
 
   c_elem->pid = pid;
   
@@ -234,8 +244,8 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
                 }
             }
           /* mark child as already waited on */
-          struct child_elem *new_c_elem = (struct child_elem *) malloc (sizeof 
-							    (struct child_elem));
+          struct child_elem *new_c_elem;
+          MALLOC_AND_VALIDATE(f, new_c_elem, sizeof (struct child_elem)); 
           new_c_elem->pid = pid;
           list_push_back (&t->waited_children_list, &new_c_elem->elem);
           f->eax = process_wait (pid); // wrong status
@@ -264,6 +274,19 @@ syscall_create (struct intr_frame *f, void *cur_sp)
   f->eax = filesys_create (file, initial_size);
 }
 
+static void 
+syscall_remove (struct intr_frame *f, void *cur_sp)
+{
+  const char *file;
+  VALIDATE_AND_GET_ARG (cur_sp, file, f);
+  if (syscall_invalid_ptr (file))
+    {
+      syscall_simple_exit (f, -1);
+      return;
+    }
+  f->eax = filesys_remove (file);
+}
+
 static void
 syscall_open (struct intr_frame *f, void *cur_sp)
 {
@@ -286,8 +309,8 @@ syscall_open (struct intr_frame *f, void *cur_sp)
     fd = next_fd++;
 
   struct thread *t = thread_current ();
-  struct file_elem *f_elem = (struct file_elem *) malloc (sizeof (struct file_elem));
-  ASSERT (f_elem);
+  struct file_elem *f_elem;
+  MALLOC_AND_VALIDATE(f, f_elem, sizeof (struct file_elem)); 
 
   f_elem->fd =fd;
   f_elem->file = file;
