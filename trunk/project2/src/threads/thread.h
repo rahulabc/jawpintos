@@ -107,6 +107,9 @@ struct thread
 
     /* Child process (thread) list */
     struct list children_list;
+
+    /* Child threads waited on */
+    struct list waited_children_list;
   };
 
 
@@ -147,5 +150,8 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 bool does_thread_exist (tid_t tid);
+void free_thread_from_exit_list (tid_t pid);
+int get_exit_status (tid_t pid);
+void add_thread_to_exited_list (tid_t pid, int status);
 
 #endif /* threads/thread.h */

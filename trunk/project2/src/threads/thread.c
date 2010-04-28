@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -28,6 +29,16 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+struct exit_elem 
+  { 
+    tid_t pid;
+    int status;
+    struct list_elem elem;
+  };
+
+/* List of threads that have exited or been terminated by kernel */
+static struct list exited_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -39,6 +50,9 @@ static struct lock tid_lock;
 
 /* Lock used for all_list */
 static struct lock all_list_lock;
+
+/* Lock used for exited_list */
+static struct lock exited_list_lock;
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -94,8 +108,10 @@ thread_init (void)
 
   lock_init (&tid_lock);
   lock_init (&all_list_lock);
+  lock_init (&exited_list_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&exited_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -478,6 +494,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_push_back (&all_list, &t->allelem);
   list_init (&t->file_list);
   list_init (&t->children_list);
+  list_init (&t->waited_children_list);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -605,11 +622,64 @@ does_thread_exist (tid_t tid)
     {
       struct thread *t = list_entry (e, struct thread, allelem);
       if (t->tid == tid) 
-	{
-	  lock_release (&all_list_lock);
-	  return true;
-	}
+        {
+          lock_release (&all_list_lock);
+          return true;
+        }
     }
   lock_release (&all_list_lock);
   return false;
 }
+
+void 
+free_thread_from_exit_list (tid_t pid) 
+{
+  struct list_elem *e;
+  lock_acquire (&exited_list_lock);
+  for (e = list_begin (&exited_list); e != list_end (&exited_list);
+       e = list_next (e))
+    {
+      struct exit_elem *ee = list_entry (e, struct exit_elem, elem);
+      if (ee->pid == pid) 
+        {
+          list_remove(e);
+          free(ee);
+          break;
+        } 
+    }
+  lock_release(&exited_list_lock);
+}
+
+int
+get_exit_status (tid_t pid)
+{
+  int status = -1;
+  struct list_elem *e;
+  lock_acquire (&exited_list_lock);
+  for (e = list_begin (&exited_list); e != list_end (&exited_list);
+       e = list_next (e))
+    {
+      struct exit_elem *ee = list_entry (e, struct exit_elem, elem);
+      if (ee->pid == pid) 
+        {
+          status = ee->status;
+          break;
+        } 
+    }
+  lock_release(&exited_list_lock);
+  return status;
+}
+
+void
+add_thread_to_exited_list (tid_t pid, int status)
+{ 
+  struct exit_elem *e_elem = (struct exit_elem*) malloc (sizeof
+           (struct exit_elem));
+  ASSERT(e_elem);
+  e_elem->pid = pid;
+  e_elem->status = status;
+  lock_acquire (&exited_list_lock);
+  list_push_back (&exited_list, &e_elem->elem);
+  lock_release (&exited_list_lock);
+}
+

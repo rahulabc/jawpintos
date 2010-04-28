@@ -197,9 +197,10 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
+
   while (does_thread_exist (child_tid))
     ;
-  return -1;
+  return get_exit_status(child_tid);
 }
 
 /* Free the current process's resources. */

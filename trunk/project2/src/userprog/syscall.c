@@ -61,7 +61,22 @@ syscall_simple_exit (struct intr_frame *f, int status)
       free (f_elem);
     }
   // Need to release the lock?
-
+  // free waited_children_list and children_list
+   while (!list_empty (&t->children_list))
+    {
+      e = list_pop_back (&t->children_list);
+      struct child_elem *c_elem = list_entry (e, struct child_elem, elem);
+      // free children from the global exit_list
+      free_thread_from_exit_list(c_elem->pid);
+      free (c_elem);
+    }
+  while (!list_empty (&t->waited_children_list))
+    {
+      e = list_pop_back (&t->waited_children_list);
+      struct child_elem *c_elem = list_entry (e, struct child_elem, elem);
+      free (c_elem);
+    }
+  add_thread_to_exited_list (t->tid, status);
   thread_exit ();
   f->eax = status;
 }
@@ -188,7 +203,7 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
 
   /* check pid validity */
   struct thread *t = thread_current ();
-  
+    
   struct list_elem *e;
   // Need to lock
   for (e = list_begin (&t->children_list); 
@@ -197,11 +212,30 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
     {
       struct child_elem *c_elem = list_entry (e, struct child_elem, elem);
       if (c_elem->pid == pid)
-	{
-	  f->eax = process_wait (pid); // wrong status
-	  return;
-	}
+        {
+          /* if child is already waited on before, return -1 */
+          struct list_elem *waited_e;
+          for (waited_e = list_begin (&t->waited_children_list); 
+               waited_e != list_end (&t->waited_children_list);
+               waited_e = list_next (waited_e))
+            {
+              struct child_elem *waited_c_elem = list_entry (waited_e, struct child_elem, elem);
+              if (waited_c_elem->pid == pid) 
+                {
+                  f->eax = -1;
+                  return;
+                }
+            }
+          /* mark child as already waited on */
+          struct child_elem *new_c_elem = (struct child_elem *) malloc (sizeof 
+							    (struct child_elem));
+          new_c_elem->pid = pid;
+          list_push_back (&t->waited_children_list, &new_c_elem->elem);
+          f->eax = process_wait (pid); // wrong status
+          return;
+        }
     }
+  /* if code gets here, means no child with that pid, so return -1 */
   f->eax = -1;
 }
 
