@@ -1,8 +1,8 @@
 = Implementing children and parent waits =
 
-* parent: a list of children threads: exec, cleanup on parent exit. use in wait.
-* parent: a list of threads waited on: wait, cleanup on parent exit. use in wait. 
-* a global list of exited threads: populate on thread exit. cleanup children on parent exit. lock access when populating and cleaning up.
+  * parent: a list of children threads: exec, cleanup on parent exit. use in wait.
+  * parent: a list of threads waited on: wait, cleanup on parent exit. use in wait. 
+  * a global list of exited threads: populate on thread exit. cleanup children on parent exit. lock access when populating and cleaning up.
 
 
 
