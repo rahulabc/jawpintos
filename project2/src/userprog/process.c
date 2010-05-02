@@ -18,6 +18,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -29,6 +30,14 @@ struct argv_elem
     char *argv;
     void *addr;
     struct list_elem elem;
+  };
+
+struct process_execute_args 
+  { 
+    bool status; 
+    char *file_name;
+    struct lock lock;
+    struct condition condition;
   };
 
 /* Starts a new thread running a user program loaded from
@@ -54,11 +63,22 @@ process_execute (const char *file_name)
   strtok_r (exec_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (exec_name, PRI_DEFAULT, start_process, fn_copy);
-
+  struct process_execute_args child_args;
+  child_args.status = false; // assumed failed unless it didn't
+  child_args.file_name = fn_copy;
+  
+  lock_init (&child_args.lock);
+  lock_acquire (&child_args.lock);
+  cond_init(&child_args.condition);
+  tid = thread_create (exec_name, PRI_DEFAULT, start_process, &child_args);
+  cond_wait (&child_args.condition, &child_args.lock);
+  lock_release (&child_args.lock);
   free (exec_name);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+
+  palloc_free_page (fn_copy);  
+
+  if (!child_args.status) 
+    tid = TID_ERROR;
   return tid;
 }
 
@@ -144,15 +164,16 @@ push_arguments (void **esp, char *cmd_in)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *args)
 {
-  char *file_name = file_name_;
+  struct process_execute_args *peargs = (struct process_execute_args *)(args);  
+  char *file_name = peargs->file_name;
   struct intr_frame if_;
   bool success;
 
   /* copy the whole command line input */
-  char *cmd_in = (char *) malloc ( (strlen(file_name) + 1) * sizeof (char));
-  strlcpy (cmd_in, file_name, strlen (file_name) + 1);
+  char *cmd_in_for_push_args = (char *) malloc ( (strlen(file_name) + 1) * sizeof (char));
+  strlcpy (cmd_in_for_push_args, file_name, strlen (file_name) + 1);
 
   /* modify file_name to contain only the file name */
   char *save_ptr;
@@ -163,18 +184,27 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+  
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* push the program's initial arguments into the stack */
-  success = push_arguments (&if_.esp, cmd_in);
+  if (success) 
+    {
+      success = push_arguments (&if_.esp, cmd_in_for_push_args);
+    }
+  free (cmd_in_for_push_args);
 
-  free (cmd_in);
+  /* wake parent up and inform... */
+  peargs->status = success;
+  lock_acquire (&peargs->lock);
+  cond_signal (&peargs->condition, &peargs->lock);
+  lock_release (&peargs->lock);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);   // CHECK: if file_name or cmd_in?
-  if (!success)
-    thread_exit ();
-  
+  if (!success) 
+    {
+      thread_exit ();
+    }
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
