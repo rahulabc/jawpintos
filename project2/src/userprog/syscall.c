@@ -4,11 +4,12 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
+#include "threads/synch.h"
 #include "userprog/pagedir.h"
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-#include "threads/malloc.h"
 #include <list.h>
 #include "devices/input.h"
 #include "userprog/process.h"
@@ -39,9 +40,11 @@ static bool syscall_invalid_ptr (const void *ptr);
 /* find file pointer from file descriptor */
 static struct file *find_file (int fd);
 
+struct lock next_fd_lock;
 void
 syscall_init (void) 
 {
+  lock_init (&next_fd_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -59,6 +62,7 @@ syscall_simple_exit (struct intr_frame *f, int status)
     {
       e = list_pop_back (&t->file_list);
       struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      file_close (f_elem->file);
       free (f_elem);
     }
   // Need to release the lock?
@@ -101,11 +105,11 @@ syscall_simple_exit (struct intr_frame *f, int status)
 
 #define VALIDATE_AND_GET_ARG(cur_sp,var,f)   \
 ({ if (syscall_invalid_ptr (cur_sp))         \
-     {					     \
-       syscall_simple_exit (f, -1);	     \
-       return;				     \
-     }					     \
-  var = *(typeof (var)*)cur_sp;		     \
+     {               \
+       syscall_simple_exit (f, -1);      \
+       return;             \
+     }               \
+  var = *(typeof (var)*)cur_sp;        \
 })
 
 static void
@@ -121,33 +125,33 @@ syscall_handler (struct intr_frame *f)
         syscall_halt (f, cur_sp);
         break;
       case SYS_EXIT:
-	syscall_exit (f, cur_sp);
+        syscall_exit (f, cur_sp);
         break;
       case SYS_EXEC:
-	//	printf("system call SYS_EXEC!\n");
-	syscall_exec (f, cur_sp);
+  //  printf("system call SYS_EXEC!\n");
+        syscall_exec (f, cur_sp);
         break;
       case SYS_WAIT:
-	//        printf("system call SYS_WAIT!\n");
-	syscall_wait (f, cur_sp);
+  //        printf("system call SYS_WAIT!\n");
+        syscall_wait (f, cur_sp);
         break;
       case SYS_CREATE:
-	syscall_create (f, cur_sp);
+        syscall_create (f, cur_sp);
         break;
       case SYS_REMOVE:
         syscall_remove (f, cur_sp);
         break;
       case SYS_OPEN:
-	syscall_open (f, cur_sp);
+        syscall_open (f, cur_sp);
         break;
       case SYS_FILESIZE:
-	syscall_filesize (f, cur_sp);
+        syscall_filesize (f, cur_sp);
         break;
       case SYS_READ:
-	syscall_read (f, cur_sp);
+        syscall_read (f, cur_sp);
         break;
       case SYS_WRITE:
-	syscall_write (f, cur_sp);
+        syscall_write (f, cur_sp);
         break;
       case SYS_SEEK:
         syscall_seek (f, cur_sp);
@@ -156,11 +160,11 @@ syscall_handler (struct intr_frame *f)
         syscall_tell (f, cur_sp);
         break;
       case SYS_CLOSE:
-	syscall_close (f, cur_sp);
+        syscall_close (f, cur_sp);
         break;
       default :
         printf ("Invalid system call! #%d\n", syscall_num);
-	syscall_simple_exit (f, -1);
+        syscall_simple_exit (f, -1);
         break;
     }
 }
@@ -287,6 +291,7 @@ syscall_remove (struct intr_frame *f, void *cur_sp)
   f->eax = filesys_remove (file);
 }
 
+
 static void
 syscall_open (struct intr_frame *f, void *cur_sp)
 {
@@ -294,7 +299,6 @@ syscall_open (struct intr_frame *f, void *cur_sp)
   int fd;
   const char *file_name;
   VALIDATE_AND_GET_ARG (cur_sp, file_name, f);
-
   if (syscall_invalid_ptr (file_name))
     {
       syscall_simple_exit (f, -1);
@@ -302,12 +306,15 @@ syscall_open (struct intr_frame *f, void *cur_sp)
     }
 
   struct file *file = filesys_open (file_name);
-  // need a lock
   if (!file)
     fd = -1;
   else
-    fd = next_fd++;
-
+    {
+      // need a lock, for global next_fd
+      lock_acquire (&next_fd_lock);
+      fd = next_fd++;
+      lock_release (&next_fd_lock);
+    }
   struct thread *t = thread_current ();
   struct file_elem *f_elem;
   MALLOC_AND_VALIDATE(f, f_elem, sizeof (struct file_elem)); 
@@ -315,12 +322,9 @@ syscall_open (struct intr_frame *f, void *cur_sp)
   f_elem->fd =fd;
   f_elem->file = file;
 
-  // Need a lock
   list_push_back (&t->file_list, &f_elem->elem);
-  // Need to release the lock
 
   f->eax = fd;
-  // need to release a lock
 }
 
 static void
@@ -451,12 +455,12 @@ syscall_close (struct intr_frame *f, void *cur_sp)
     {
       struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
       if (f_elem->fd == fd)
-	{
-	  file_close (f_elem->file);
-	  list_remove (e);
-	  free (f_elem);
-	  return;
-	}
+        {
+          file_close (f_elem->file);
+          list_remove (e);
+          free (f_elem);
+          return;
+        }
     }  
   syscall_simple_exit (f, -1); // Need this?
   // Need to release the lock
@@ -468,8 +472,10 @@ syscall_invalid_ptr (const void *ptr)
 {
   if (!is_user_vaddr (ptr) || 
       !pagedir_get_page (thread_current ()->pagedir, ptr) ||
-      ptr == NULL)
-    return true;
+      ptr == NULL) 
+    {
+      return true;
+    }
   return false;
 }
 
@@ -486,7 +492,7 @@ find_file (int fd)
     {
       struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
       if (f_elem->fd == fd)
-	return f_elem->file;
+        return f_elem->file;
     }
   return NULL;
 }
