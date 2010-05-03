@@ -207,7 +207,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  t->parent_id = thread_current()->tid;
+  t->parent_id = thread_current ()->tid;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -649,12 +649,12 @@ free_thread_from_exit_list (tid_t pid)
       struct exit_elem *ee = list_entry (e, struct exit_elem, elem);
       if (ee->pid == pid) 
         {
-          list_remove(e);
-          free(ee);
+          list_remove (e);
+          free (ee);
           break;
         } 
     }
-  lock_release(&exited_list_lock);
+  lock_release (&exited_list_lock);
 }
 
 int
@@ -673,7 +673,7 @@ get_exit_status (tid_t pid)
           break;
         } 
     }
-  lock_release(&exited_list_lock);
+  lock_release (&exited_list_lock);
   return status;
 }
 
@@ -681,8 +681,8 @@ void
 add_thread_to_exited_list (tid_t pid, int status)
 { 
   struct exit_elem *e_elem = (struct exit_elem*) malloc (sizeof
-           (struct exit_elem));
-  ASSERT(e_elem);
+							 (struct exit_elem));
+  ASSERT (e_elem);
   e_elem->pid = pid;
   e_elem->status = status;
   lock_acquire (&exited_list_lock);
@@ -730,17 +730,17 @@ get_thread (tid_t tid)
 int 
 thread_wait_on_child_exit (tid_t child_tid)
 {
-  if ( !is_child_thread (child_tid) )
+  if (!is_child_thread (child_tid))
       return -1;
   
-  if ( !does_thread_exist (child_tid) ) 
+  if (!does_thread_exist (child_tid)) 
     {
-      sema_down (&thread_current()->waiting_on_child_exit_sema);
+      sema_down (&thread_current ()->waiting_on_child_exit_sema);
       return get_exit_status (child_tid);  
     }
   
   // my child and it is running...
-  sema_down (&thread_current()->waiting_on_child_exit_sema);
+  sema_down (&thread_current ()->waiting_on_child_exit_sema);
   return get_exit_status (child_tid);
 }
 

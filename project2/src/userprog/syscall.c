@@ -55,7 +55,7 @@ syscall_init (void)
 void
 thread_cleanup_and_exit (int status) 
 {
-  printf("%s: exit(%d)\n", thread_name (), status);
+  printf ("%s: exit(%d)\n", thread_name (), status);
   /* close all open file descriptors */
   struct thread *t = thread_current ();
  
@@ -104,7 +104,7 @@ thread_cleanup_and_exit (int status)
       lock_release (l);
     }
   /* wake parent up if its waiting on it */
-  struct thread *parent = get_thread (thread_current()->parent_id);
+  struct thread *parent = get_thread (thread_current ()->parent_id);
   if (parent)  {
     sema_up (&parent->waiting_on_child_exit_sema);
   }
@@ -204,7 +204,7 @@ static void
 syscall_exit (struct intr_frame *f, void *cur_sp)
 {
   int status;
-  VALIDATE_AND_GET_ARG(cur_sp, status, f); 
+  VALIDATE_AND_GET_ARG (cur_sp, status, f); 
   syscall_thread_exit (f, status);
 }
 
@@ -212,7 +212,7 @@ static void
 syscall_exec (struct intr_frame *f, void *cur_sp)
 {
   const char *cmd_line;
-  VALIDATE_AND_GET_ARG(cur_sp, cmd_line, f);
+  VALIDATE_AND_GET_ARG (cur_sp, cmd_line, f);
 
   if (syscall_invalid_ptr (cmd_line))
     {
@@ -234,7 +234,7 @@ static void
 syscall_wait (struct intr_frame *f, void *cur_sp)
 {
   tid_t pid;
-  VALIDATE_AND_GET_ARG(cur_sp, pid, f);
+  VALIDATE_AND_GET_ARG (cur_sp, pid, f);
 
   /* check pid validity */
   struct thread *t = thread_current ();
@@ -263,7 +263,7 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
             }
           /* mark child as already waited on */
           struct wait_child_elem *new_wait_c_elem;
-          MALLOC_AND_VALIDATE(f, new_wait_c_elem, sizeof (struct wait_child_elem)); 
+          MALLOC_AND_VALIDATE (f, new_wait_c_elem, sizeof (struct wait_child_elem)); 
           new_wait_c_elem->pid = pid;
           list_push_back (&t->waited_children_list, &new_wait_c_elem->elem);
           f->eax = process_wait (pid); // wrong status
@@ -397,7 +397,7 @@ syscall_read (struct intr_frame *f, void *cur_sp)
   if (file != NULL)
     {
       lock_acquire (&read_filesys_lock);
-      f->eax = file_read(file, buffer, length);
+      f->eax = file_read (file, buffer, length);
       lock_release (&read_filesys_lock);
     }
   else
@@ -431,7 +431,7 @@ syscall_write (struct intr_frame *f, void *cur_sp)
 
   if (fd == STDOUT_FILENO)
     {
-      putbuf(buffer, length);
+      putbuf (buffer, length);
       f->eax = length;
       return;
     }
