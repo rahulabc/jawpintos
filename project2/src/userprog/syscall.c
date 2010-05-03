@@ -40,11 +40,18 @@ static bool syscall_invalid_ptr (const void *ptr);
 /* find file pointer from file descriptor */
 static struct file *find_file (int fd);
 
-struct lock next_fd_lock;
+static struct lock next_fd_lock;
+static struct lock create_remove_filesys_lock;
+static struct lock read_filesys_lock;
+static struct lock write_filesys_lock;
+
 void
 syscall_init (void) 
 {
   lock_init (&next_fd_lock);
+  lock_init (&create_remove_filesys_lock);
+  lock_init (&write_filesys_lock);
+  lock_init (&read_filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -263,8 +270,9 @@ syscall_create (struct intr_frame *f, void *cur_sp)
       syscall_simple_exit (f, -1);
       return;
     }
-
+  lock_acquire (&create_remove_filesys_lock);
   f->eax = filesys_create (file, initial_size);
+  lock_release (&create_remove_filesys_lock);
 }
 
 static void 
@@ -277,7 +285,9 @@ syscall_remove (struct intr_frame *f, void *cur_sp)
       syscall_simple_exit (f, -1);
       return;
     }
+  lock_acquire (&create_remove_filesys_lock);
   f->eax = filesys_remove (file);
+  lock_release (&create_remove_filesys_lock);
 }
 
 
@@ -299,7 +309,6 @@ syscall_open (struct intr_frame *f, void *cur_sp)
     fd = -1;
   else
     {
-      // need a lock, for global next_fd
       lock_acquire (&next_fd_lock);
       fd = next_fd++;
       lock_release (&next_fd_lock);
@@ -324,7 +333,11 @@ syscall_filesize (struct intr_frame *f, void *cur_sp)
 
   struct file *file = find_file (fd);
   if (file != NULL)
-    f->eax = file_length (file);
+    {
+      lock_acquire (&write_filesys_lock);
+      f->eax = file_length (file);
+      lock_release (&write_filesys_lock);
+    }
   else
     syscall_simple_exit (f, -1);
 }
@@ -332,8 +345,6 @@ syscall_filesize (struct intr_frame *f, void *cur_sp)
 static void
 syscall_read (struct intr_frame *f, void *cur_sp)
 {
-  // FIXME :
-  /* DOESN'T HAVE FD SPECIFIC READ */
   int fd;
   void * buffer;
   unsigned length;
@@ -354,14 +365,17 @@ syscall_read (struct intr_frame *f, void *cur_sp)
   
   if (fd == STDIN_FILENO) 
     {
-      //NEED TO FIX INPUT_GETC AND WHAT TO RETURN
       f->eax = input_getc ();
       return;
     }
   
   struct file *file = find_file (fd);
   if (file != NULL)
-    f->eax = file_read(file, buffer, length);
+    {
+      lock_acquire (&read_filesys_lock);
+      f->eax = file_read(file, buffer, length);
+      lock_release (&read_filesys_lock);
+    }
   else
     syscall_simple_exit (f, -1);
 }
@@ -369,8 +383,6 @@ syscall_read (struct intr_frame *f, void *cur_sp)
 static void 
 syscall_write (struct intr_frame *f, void *cur_sp)
 {
-  // FIXME :
-  /* DOESN'T HAVE FD SPECIFIC WRITE */
   int fd;
   const void * buffer;
   unsigned length;
@@ -396,7 +408,13 @@ syscall_write (struct intr_frame *f, void *cur_sp)
 
   struct file *file = find_file (fd);
   if (file != NULL)
-    f->eax = file_write (file, buffer, length);
+    {
+      lock_acquire (&read_filesys_lock);
+      lock_acquire (&write_filesys_lock);
+      f->eax = file_write (file, buffer, length);
+      lock_release (&write_filesys_lock);
+      lock_release (&read_filesys_lock);
+    }
   else
     syscall_simple_exit (f, -1);
 }
@@ -412,7 +430,13 @@ syscall_seek (struct intr_frame *f, void *cur_sp)
 
   struct file *file = find_file (fd);
   if (file != NULL)
-    file_seek (file, position);
+    {
+      lock_acquire (&read_filesys_lock);
+      lock_acquire (&write_filesys_lock);
+      file_seek (file, position);
+      lock_release (&write_filesys_lock);
+      lock_release (&read_filesys_lock);
+    }
   else
     syscall_simple_exit (f, -1);
 }
@@ -425,7 +449,13 @@ syscall_tell (struct intr_frame *f, void *cur_sp)
 
   struct file *file = find_file (fd);
   if (file != NULL)
-    f->eax = file_tell (file);
+    {
+      lock_acquire (&read_filesys_lock);
+      lock_acquire (&write_filesys_lock);
+      f->eax = file_tell (file);
+      lock_release (&write_filesys_lock);
+      lock_release (&read_filesys_lock);
+    }
   else
     syscall_simple_exit (f, -1);
 }
@@ -433,12 +463,13 @@ syscall_tell (struct intr_frame *f, void *cur_sp)
 static void
 syscall_close (struct intr_frame *f, void *cur_sp)
 {
+  // we do not expect same fd's to be called by many threads in this
+  // version of pintos, so don't need a lock 
   int fd;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
 
   struct thread *t = thread_current ();
   struct list_elem *e;
-  // Need a lock 
   for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
        e = list_next (e))
     {
@@ -452,7 +483,6 @@ syscall_close (struct intr_frame *f, void *cur_sp)
         }
     }  
   syscall_simple_exit (f, -1); // Need this?
-  // Need to release the lock
 }
 
 

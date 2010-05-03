@@ -118,6 +118,14 @@ what is an argument.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
 
+***************************************************************************
+We currently maintain a single global file-descriptor generator ('next_fd') 
+across the OS. This gets incremented each time an 'open' call is made. So a 
+given file-name can be associated with multiple file descriptors. We 
+additionally also maintain a list of open file descriptors and the file 
+pointer associated with it in the thread structure ('file_list').
+***************************************************************************
+
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
@@ -169,6 +177,17 @@ what is an argument.
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
+***************************************************************************
+
+Note on our filesys locks:
+We have common global locks for the 'create' and 'remove'. We have a common 
+global lock for 'read' and 'write' (although this could be one per inode for 
+more flexibility). These 'read' and 'write' locks are also used by 'seek' and 
+'tell' and are acquired in the same order in all these methods, in order
+to avoid deadlocks. The file-descriptor allocator is locked using a separate
+global lock as well.
+***************************************************************************
+
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
@@ -181,7 +200,6 @@ more than one threads, one can see how a mechanism to associate all threads
 that are part of the same process can be beneficial and result in 
 efficiency gains. 
 ***************************************************************************
-
 
                SURVEY QUESTIONS
                ================
