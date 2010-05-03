@@ -100,6 +100,9 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
+    /* executable file pointer */
+    struct file *efile;
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
 
@@ -167,6 +170,7 @@ struct child_elem
   {
     tid_t pid;
     struct list_elem elem;
+    struct list_elem elemw;
   };
 
 struct wait_child_elem
