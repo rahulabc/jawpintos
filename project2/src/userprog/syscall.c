@@ -64,7 +64,9 @@ syscall_simple_exit (struct intr_frame *f, int status)
   struct thread *t = thread_current ();
  
   struct list_elem *e;
-  // Need a lock ?
+
+  /* close all the files opened and
+     free spaces allocated for the file list */
   while (!list_empty (&t->file_list))
     {
       e = list_pop_back (&t->file_list);
@@ -72,9 +74,9 @@ syscall_simple_exit (struct intr_frame *f, int status)
       file_close (f_elem->file);
       free (f_elem);
     }
-  // Need to release the lock?
-  // free waited_children_list and children_list
-   while (!list_empty (&t->children_list))
+
+  /* free waited_children_list and children_list */
+  while (!list_empty (&t->children_list))
     {
       e = list_pop_back (&t->children_list);
       struct child_elem *c_elem = list_entry (e, struct child_elem, elem);
@@ -88,9 +90,10 @@ syscall_simple_exit (struct intr_frame *f, int status)
       struct wait_child_elem *w_elem = list_entry (e, struct wait_child_elem, elem);
       free (w_elem);
     }
+
   add_thread_to_exited_list (t->tid, status);
   
-  // allow file write to executable...
+  /* allow file write to executable */
   if (t->exec_file) 
     {
       file_allow_write (t->exec_file);
@@ -104,6 +107,7 @@ syscall_simple_exit (struct intr_frame *f, int status)
       struct lock *l = list_entry (e, struct lock, elem);
       lock_release (l);
     }
+
   thread_exit ();
   f->eax = status;
 }

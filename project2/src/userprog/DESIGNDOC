@@ -116,7 +116,89 @@ what is an argument.
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
 ***************************************************************************
+/* File list element */
+struct file_elem
+  {
+    int fd;                  /* file descriptor */
+    struct file *file;
+    struct list_elem elem;
+  };
 
+A file descriptor element to be inserted into the file descriptor list 
+('file_list') that each process holds.
+
+struct thread
+  {
+    ...
+    /* executable file pointer */
+    struct file *efile;
+
+    /* File descriptor list */
+    struct list file_list;
+
+    /* Child process (thread) list */
+    struct list children_list;
+
+    /* Child threads waited on */
+    struct list waited_children_list;
+
+    /* executable file so it can allow deny writes when in existence */
+    struct file *exec_file;
+    
+    /* parent thread id */
+    tid_t parent_id;
+
+    /* semaphore used for parent waiting for the child 
+       process to exit */
+    struct semaphore waiting_on_child_exit_sema;
+
+    /* list of acquired locks that needs to be freed when
+       process terminates before releasing all the locks */
+    struct list acquired_locks;
+  };
+
+/* executable file pointer */
+struct file *efile;
+
+/* File descriptor list */
+struct list file_list;
+       
+list of the file descriptors opened by the current thread (process).
+
+/* Child process (thread) list */
+struct list children_list;
+
+list of child processes executed by the current thread to allow current 
+thread only to wait on its children.
+
+/* Child threads waited on */
+struct list waited_children_list;
+
+list of child processes that current thread has waited on to disallow
+current thread from waiting on the child thread more than once.
+
+/* executable file so it can allow deny writes when in existence */
+struct file *exec_file;
+    
+/* parent thread id */
+tid_t parent_id;
+
+current thread's parent's tid which is used to up the parent thread's 
+semaphore if its parents is waiting for the current thread to exit.
+
+/* semaphore used for parent waiting for the child 
+   process to exit */
+struct semaphore waiting_on_child_exit_sema;
+
+semaphore used to ensure that parent process waits until the child process
+exits.
+
+/* list of acquired locks that needs to be freed when
+   process terminates before releasing all the locks */
+struct list acquired_locks;
+
+list of all locks acquired by the current thread so that all locks can be
+released when the process terminates.
 ***************************************************************************
 
 >> B2: Describe how file descriptors are associated with open files.
