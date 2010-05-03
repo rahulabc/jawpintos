@@ -504,6 +504,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->file_list);
   list_init (&t->children_list);
   list_init (&t->waited_children_list);
+  list_init (&t->acquired_locks);
   sema_init (&t->waiting_on_child_exit_sema, 0);
 }
 

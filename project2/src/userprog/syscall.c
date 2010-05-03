@@ -96,6 +96,14 @@ syscall_simple_exit (struct intr_frame *f, int status)
       file_allow_write (t->exec_file);
       file_close (t->exec_file);
     }
+
+  /* release all the locks that have not already been released */
+  while (!list_empty (&t->acquired_locks))
+    {
+      struct list_elem *e = list_front (&t->acquired_locks);
+      struct lock *l = list_entry (e, struct lock, elem);
+      lock_release (l);
+    }
   thread_exit ();
   f->eax = status;
 }
@@ -352,8 +360,14 @@ syscall_read (struct intr_frame *f, void *cur_sp)
   cur_sp += sizeof (void *);
   VALIDATE_AND_GET_ARG (cur_sp, length, f);
 
+  /* terminate process when the provided arguments
+     are invalid for the following reasons:
+     1. invalid file descriptors
+     2. invalid buffer pointer
+     3. invalid end of buffer pointer */
   if (fd == STDOUT_FILENO || fd < -1 ||
-      syscall_invalid_ptr (buffer))
+      syscall_invalid_ptr (buffer) ||
+      syscall_invalid_ptr (buffer + length))
     {
       syscall_simple_exit (f, -1);
       return;
@@ -389,9 +403,15 @@ syscall_write (struct intr_frame *f, void *cur_sp)
   VALIDATE_AND_GET_ARG (cur_sp, buffer, f);
   cur_sp += sizeof (void *);
   VALIDATE_AND_GET_ARG (cur_sp, length, f);
-  
+
+  /* terminate process when the provided arguments
+     are invalid for the following reasons:
+     1. invalid file descriptors
+     2. invalid buffer pointer
+     3. invalid end of buffer pointer */  
   if (fd == STDIN_FILENO || fd < -1 ||
-      syscall_invalid_ptr (buffer))
+      syscall_invalid_ptr (buffer) ||
+      syscall_invalid_ptr (buffer + length))
     {
       syscall_simple_exit (f, -1);
       return;
