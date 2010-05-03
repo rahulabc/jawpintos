@@ -204,7 +204,20 @@ the parent process can return from its wait () function.
 >> success/failure status passed back to the thread that calls "exec"?
 
 ***************************************************************************
+In our design, we pass in a struct called process_execute_args into 
+start_process () instead of the file name. This structure is used as a
+condition variable, that gets signaled when the child successfully loads,
+and a storage for the file name needed for loading and the 'status' 
+variable that stores whether load of the child process succeeded or not.
 
+When a parent process executes the child process in process_execute (), 
+it creates a process_execute_args and waits for the condition variable
+inside the struct to be signaled by the child process. 
+
+The child process receives the process_execute_args in start_process and 
+sets the 'status' variable to true if load succeeded and false if load 
+failed. Then, the condition variable is signaled so that the parent
+process can continue after the child's load is done.
 ***************************************************************************
 
 >> B8: Consider parent process P with child process C.  How do you
