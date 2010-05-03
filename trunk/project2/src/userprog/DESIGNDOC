@@ -39,6 +39,7 @@ Anand Madhavan <manand@stanford.edu>
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
+strtok keeps internal state to track the tokens across a sequence of calls by the caller. This makes it thread unsafe, because two callers cannot call it at the same time and expect reliable outputs. The strtok_r alleviates this by taking a third parameter which keeps this state, thus allowing for a thread-safe implementation.
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
