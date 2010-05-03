@@ -111,6 +111,8 @@ strtok keeps internal state to track the tokens across a sequence of calls by th
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
+In project 2 version of Pintos, each process is associated with just one thread (itself) and no more. So our approach has been to retain the identity mapping. This straightforward approach kept the code very understandable and simple. If however, a process were to be associated with more than one threads, one can see how a mechanism to associate all threads that are part of the same process can be beneficial and result in efficiency gains. 
+
 
                SURVEY QUESTIONS
                ================
@@ -123,15 +125,19 @@ the quarter.
 
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
+Took just about the right amount of time for its reputation.
 
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+syscall handling gave us a great idea of how user processes and the kernel interact.
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+No, you guys're doing a great job.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
-
+Please don't dock so much points on the subjective-evaluation part of our first assignment but if you HAVE to, do make the first assignment not count for so much of the grade. It is very demotivating for the rest of the quarter.
+ 
 >> Any other comments?
