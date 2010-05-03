@@ -94,6 +94,17 @@ a thread-safe implementation.
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
+There would be three solid advantages to Unix-like approach.
+One, redirection of STDOUT, STDIN, and STDERR to files using operators
+such as >, <, < &, and etc. Two, piping of STDOUT, STDIN, and STDERR
+to other commands such as 'sort'. Three, running a sequence of commands
+in a single command. All three could also be done in the kernel but
+it would require significantly more code in the kernel because
+it has to keep track of all the keywords and operators and it would also
+need a measure to distinguish between what is a command and
+what is an argument.
+
+
                  SYSTEM CALLS
                  ============
 
