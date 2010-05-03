@@ -30,11 +30,53 @@ Anand Madhavan <manand@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+***************************************************************************
+/* argument element struct used for the list that is 
+   used to keep track of the string pointer and 
+   address of the arguments in the stack */
+struct argv_elem 
+  {
+    char *argv;               /* argument string */
+    void *addr;               /* argument address in stack */
+    struct list_elem elem;   
+  };
+
+Element to put in the list that stores the string pointers and
+their addresses when pushing arguments and their addresses into
+the stack.
+***************************************************************************
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
+
+***************************************************************************
+Right after the stack frame has been initialized and load has completed, 
+we push the arguments - via the push_arguments function defined in 
+process.c - by tokenizing the command line input received and copying 
+each token (the argv[n][..]'s), from left to right, to the stack. At the 
+same time, the address of the tokens in the stack are stored and pushed 
+back to the argv_list, from left to right, so that it can be retrieved 
+later for pushing in argv[n]'s to the stack. 
+
+After the tokens have been copied into the stack, the stack is
+word-aligned so that the stack pointer points to an address that is a 
+multiple of 4. The sentinel of 0 is pushed in, and the argument address,
+that we stored in argv_list, are pushed into the stack, followed by
+the number of arguments, argc. Because we copied the arguments from
+left to right and inserted into the back of the argv_list in the same
+order, we push the addresses in the opposite order by popping from the
+back of the list to ensure that the argument addresses are pushed in
+the right order.
+
+The stack page overflow is avoided by checking that the sum of the
+lengths of token strings and the space needed for the argument
+addresses, return address, and etc. is less than the page size as we
+push the arguments into the stack. If the number of bytes needed exceeds
+the page size, we terminate the process. 
+***************************************************************************
 
 ---- RATIONALE ----
 

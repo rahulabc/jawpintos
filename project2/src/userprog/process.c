@@ -24,20 +24,29 @@ static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static bool push_arguments (void **esp, char *cmd_in);
 
-/* struct for arguments to be inserted into the list */
+/* argument element struct used for the list that is 
+   used to keep track of the string pointer and 
+   address of the arguments in the stack */
 struct argv_elem 
   {
-    char *argv;
-    void *addr;
-    struct list_elem elem;
+    char *argv;               /* argument string */
+    void *addr;               /* argument address in stack */
+    struct list_elem elem;   
   };
 
+/* struct passed into start_process when a child process is
+   executed by the parent. Success of load and process running
+   is passed back to the parent process via this struct */
 struct process_execute_args 
   { 
-    bool status; 
-    char *file_name;
-    struct lock lock;
-    struct condition condition;
+    bool status;                  /* success of load */
+    char *file_name;              /* commandline input passed in to 
+				     execute the child process */
+    struct lock lock;             /* lock used for the condition variable */
+    struct condition condition;   /* condition variable used for 
+				     synchronization needed when the
+				     parent waits until child 
+				     successfully loads */
   };
 
 /* Starts a new thread running a user program loaded from
@@ -57,7 +66,7 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *exec_name = (char *) malloc ( (strlen(file_name) + 1) * sizeof (char));
+  char *exec_name = (char *) malloc ( (strlen (file_name) + 1) * sizeof (char));
   strlcpy (exec_name, file_name, strlen (file_name) + 1);
   char *save_ptr;
   strtok_r (exec_name, " ", &save_ptr);
@@ -78,7 +87,7 @@ process_execute (const char *file_name)
   if (child_args.status) 
     {
       struct thread *t = thread_current ();
-      struct child_elem *c_elem = (struct child_elem *) (malloc (sizeof(struct child_elem)));
+      struct child_elem *c_elem = (struct child_elem *) (malloc (sizeof (struct child_elem)));
       c_elem->pid = tid;
       list_push_back (&t->children_list, &c_elem->elem);
     }
