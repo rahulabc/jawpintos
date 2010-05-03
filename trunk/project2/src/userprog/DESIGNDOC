@@ -81,7 +81,14 @@ the page size, we terminate the process.
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
-strtok keeps internal state to track the tokens across a sequence of calls by the caller. This makes it thread unsafe, because two callers cannot call it at the same time and expect reliable outputs. The strtok_r alleviates this by taking a third parameter which keeps this state, thus allowing for a thread-safe implementation.
+
+***************************************************************************
+strtok keeps internal state to track the tokens across a sequence of calls 
+by the caller. This makes it thread unsafe, because two callers cannot call 
+it at the same time and expect reliable outputs. The strtok_r alleviates 
+this by taking a third parameter which keeps this state, thus allowing for 
+a thread-safe implementation.
+***************************************************************************
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
@@ -153,7 +160,16 @@ strtok keeps internal state to track the tokens across a sequence of calls by th
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
-In project 2 version of Pintos, each process is associated with just one thread (itself) and no more. So our approach has been to retain the identity mapping. This straightforward approach kept the code very understandable and simple. If however, a process were to be associated with more than one threads, one can see how a mechanism to associate all threads that are part of the same process can be beneficial and result in efficiency gains. 
+
+***************************************************************************
+In project 2 version of Pintos, each process is associated with just one 
+thread (itself) and no more. So our approach has been to retain the 
+identity mapping. This straightforward approach kept the code very 
+understandable and simple. If however, a process were to be associated with 
+more than one threads, one can see how a mechanism to associate all threads 
+that are part of the same process can be beneficial and result in 
+efficiency gains. 
+***************************************************************************
 
 
                SURVEY QUESTIONS
