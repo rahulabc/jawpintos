@@ -31,6 +31,8 @@ Anand Madhavan <manand@stanford.edu>
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
 ***************************************************************************
+In process.c
+
 /* argument element struct used for the list that is 
    used to keep track of the string pointer and 
    address of the arguments in the stack */
@@ -116,6 +118,8 @@ what is an argument.
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
 ***************************************************************************
+In syscall.h ...
+
 /* File list element */
 struct file_elem
   {
@@ -126,6 +130,9 @@ struct file_elem
 
 A file descriptor element to be inserted into the file descriptor list 
 ('file_list') that each process holds.
+
+===========================================================================
+In thread.h ....
 
 struct thread
   {
@@ -158,7 +165,9 @@ struct thread
   };
 
 /* executable file pointer */
-struct file *efile;
+struct file *efile; 
+
+// TODO: Anand efile
 
 /* File descriptor list */
 struct list file_list;
@@ -179,6 +188,8 @@ current thread from waiting on the child thread more than once.
 
 /* executable file so it can allow deny writes when in existence */
 struct file *exec_file;
+
+// TODO: Anand exec_file
     
 /* parent thread id */
 tid_t parent_id;
@@ -199,6 +210,107 @@ struct list acquired_locks;
 
 list of all locks acquired by the current thread so that all locks can be
 released when the process terminates.
+
+
+struct child_elem
+  {
+    tid_t pid;
+    struct list_elem elem;
+  };
+
+element struct to be inserted into children_list for the parent thread
+
+struct wait_child_elem
+  {
+    tid_t pid;
+    struct list_elem elem;
+  };
+
+element struct to be inserted into waited_children_list for the parent
+thread
+
+===========================================================================
+In process.c ...
+
+/* struct passed into start_process when a child process is
+   executed by the parent. Success of load and process running
+   is passed back to the parent process via this struct */
+struct process_execute_args 
+  { 
+    bool status;                  /* success of load */
+    char *file_name;              /* commandline input passed in to 
+				     execute the child process */
+    struct lock lock;             /* lock used for the condition variable */
+    struct condition condition;   /* condition variable used for 
+				     synchronization needed when the
+				     parent waits until child 
+				     successfully loads */
+  };
+
+struct to ensure that the parent thread exits exec () syscall after the
+child process has successfully loaded its file.
+
+bool status;                  /* success of load */
+
+stores whether load child process successfully loaded its file that is 
+used by parent to add the child to its children_list if child loaded 
+successfully.
+
+char *file_name;              /* commandline input passed in to 
+			         execute the child process */
+
+command line input passed to the child process which is used to load and
+run the user program.
+
+struct lock lock;             /* lock used for the condition variable */
+
+lock to be used with the condition variable below.
+
+struct condition condition;   /* condition variable used for 
+				 synchronization needed when the
+				 parent waits until child 
+				 successfully loads */
+
+condition variable waited by the parent process until the child process
+finishes its load process and signals the condition variable to return
+to the parent.
+
+
+/* element for exited_list which stores the pid of the process
+   that has exited or has been terminated */
+struct exit_elem 
+  { 
+    tid_t pid;               
+    int status;              /* return status the exit syscall received */
+    struct list_elem elem;
+  };
+
+Element to be inserted into exited_list. It contains the pid and exit
+status of a thread that has exited or has been terminated */
+
+
+/* List of threads that have exited or been terminated by kernel */
+static struct list exited_list;
+
+A global list of threads that have exited or have been terminated the 
+kernel.
+
+===========================================================================
+In synch.h ...
+
+/* Lock. */
+struct lock 
+  {
+    struct thread *holder;      /* Thread holding lock (for debugging). */
+    struct semaphore semaphore; /* Binary semaphore controlling access. */
+
+    struct list_elem elem;
+  };
+
+struct list_elem elem;
+
+list_elem so that the lock can be inserted into acquired_locks list for
+a thread 
 ***************************************************************************
 
 >> B2: Describe how file descriptors are associated with open files.
@@ -219,7 +331,7 @@ pointer associated with it in the thread structure ('file_list').
 >> kernel.
 
 ***************************************************************************
-
+//TODO
 ***************************************************************************
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
@@ -230,7 +342,7 @@ pointer associated with it in the thread structure ('file_list').
 >> for improvement in these numbers, and how much?
 
 ***************************************************************************
-
+//TODO
 ***************************************************************************
 
 >> B5: Briefly describe your implementation of the "wait" system call
@@ -254,7 +366,7 @@ initialized to zero to wait until the child process exits and ups its
 parent's waiting_on_child_exit_sema.
 
 Whether the child terminates normally or by an exception, there is a 
-routine called syscall_simple_exit in our design which frees all the 
+routine called syscall_thread_exit in our design which frees all the 
 resource and locks assigned to a process. When the child process exits
 via this routine, the parent's waiting_on_child_exit_sema is upped so that
 the parent process can return from its wait () function.
@@ -275,7 +387,7 @@ the parent process can return from its wait () function.
 >> managing these issues.  Give an example.
 
 ***************************************************************************
-
+//TODO
 ***************************************************************************
 
 ---- SYNCHRONIZATION ----
@@ -310,7 +422,7 @@ process can continue after the child's load is done.
 >> there any special cases?
 
 ***************************************************************************
-
+//TODO
 ***************************************************************************
 
 ---- RATIONALE ----
@@ -319,13 +431,14 @@ process can continue after the child's load is done.
 >> kernel in the way that you did?
 
 ***************************************************************************
-
+//TODO
 ***************************************************************************
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
 ***************************************************************************
+//TODO
 
 Note on our filesys locks:
 We have common global locks for the 'create' and 'remove'. We have a common 
