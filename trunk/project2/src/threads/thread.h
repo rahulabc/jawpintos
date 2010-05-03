@@ -118,8 +118,16 @@ struct thread
     /* executable file so it can allow deny writes when in existence */
     struct file *exec_file;
     
+    /* parent thread id */
     tid_t parent_id;
+
+    /* semaphore used for parent waiting for the child 
+       process to exit */
     struct semaphore waiting_on_child_exit_sema;
+
+    /* list of acquired locks that needs to be freed when
+       process terminates before releasing all the locks */
+    struct list acquired_locks;
   };
 
 
