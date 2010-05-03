@@ -78,8 +78,8 @@ syscall_simple_exit (struct intr_frame *f, int status)
   while (!list_empty (&t->waited_children_list))
     {
       e = list_pop_back (&t->waited_children_list);
-      struct child_elem *c_elem = list_entry (e, struct child_elem, elem);
-      free (c_elem);
+      struct wait_child_elem *w_elem = list_entry (e, struct wait_child_elem, elem);
+      free (w_elem);
     }
   add_thread_to_exited_list (t->tid, status);
   
@@ -229,7 +229,7 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
                waited_e != list_end (&t->waited_children_list);
                waited_e = list_next (waited_e))
             {
-              struct child_elem *waited_c_elem = list_entry (waited_e, struct child_elem, elem);
+              struct wait_child_elem *waited_c_elem = list_entry (waited_e, struct wait_child_elem, elem);
               if (waited_c_elem->pid == pid) 
                 {
                   f->eax = -1;
@@ -237,10 +237,10 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
                 }
             }
           /* mark child as already waited on */
-          struct child_elem *new_c_elem;
-          MALLOC_AND_VALIDATE(f, new_c_elem, sizeof (struct child_elem)); 
-          new_c_elem->pid = pid;
-          list_push_back (&t->waited_children_list, &new_c_elem->elem);
+          struct wait_child_elem *new_wait_c_elem;
+          MALLOC_AND_VALIDATE(f, new_wait_c_elem, sizeof (struct wait_child_elem)); 
+          new_wait_c_elem->pid = pid;
+          list_push_back (&t->waited_children_list, &new_wait_c_elem->elem);
           f->eax = process_wait (pid); // wrong status
           return;
         }
