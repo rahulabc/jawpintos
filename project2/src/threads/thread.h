@@ -168,11 +168,13 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 bool does_thread_exist (tid_t tid);
+struct thread * get_thread (tid_t tid);
 void free_thread_from_exit_list (tid_t pid);
 int get_exit_status (tid_t pid);
 void add_thread_to_exited_list (tid_t pid, int status);
 
 int thread_wait_on_child_exit (tid_t child_tid);
+
 
 struct child_elem
   {

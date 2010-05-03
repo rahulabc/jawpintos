@@ -14,7 +14,11 @@ struct file_elem
   };
 
 void syscall_init (void);
-/* simple exit */
-void syscall_simple_exit (struct intr_frame *f, int status);
+
+/* function for exiting a thread after cleaning up any held resources */
+void thread_cleanup_and_exit (int status);
+
+/* same as above, but sets the status in the intr_frame as well */
+void syscall_thread_exit (struct intr_frame *f, int status);
 
 #endif /* userprog/syscall.h */

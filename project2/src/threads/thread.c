@@ -88,7 +88,6 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static bool is_child_thread (tid_t pid);
-static struct thread * get_thread (tid_t tid);
 
 
 /* Initializes the threading system by transforming the code
@@ -318,11 +317,6 @@ thread_exit (void)
   process_exit ();
 #endif
 
-  /* wake parent up if its waiting on it */
-  struct thread *parent = get_thread (thread_current()->parent_id);
-  if (parent)  {
-    sema_up (&parent->waiting_on_child_exit_sema);
-  }
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
