@@ -115,6 +115,10 @@ what is an argument.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+***************************************************************************
+
+***************************************************************************
+
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
@@ -132,6 +136,10 @@ pointer associated with it in the thread structure ('file_list').
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
 
+***************************************************************************
+
+***************************************************************************
+
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
 >> and the greatest possible number of inspections of the page table
@@ -139,8 +147,36 @@ pointer associated with it in the thread structure ('file_list').
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
 
+***************************************************************************
+
+***************************************************************************
+
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
+
+***************************************************************************
+Since in pintos a process can only execute a single thread, a thread is 
+equivalent to a process in this context.
+
+In our design, each parent process keeps a list of its child processes
+('children_list'). We also keep a list of child processes that it has 
+waited on before ('waited_children_list'). 
+
+When a wait on a pid is called, the parent first goes through its 
+children_list and finds if the pid corresponds to its own child. If not, 
+wait returns -1. After confirming that it is its child, the parent checks 
+if it had already waited on the pid before by checking 
+waited_children_list. If it has, wait returns -1. Otherwise, it waits on
+the child by downing a semaphore in the parent ('waiting_on_child_exit_sema')
+initialized to zero to wait until the child process exits and ups its
+parent's waiting_on_child_exit_sema.
+
+Whether the child terminates normally or by an exception, there is a 
+routine called syscall_simple_exit in our design which frees all the 
+resource and locks assigned to a process. When the child process exits
+via this routine, the parent's waiting_on_child_exit_sema is upped so that
+the parent process can return from its wait () function.
+***************************************************************************
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -156,12 +192,20 @@ pointer associated with it in the thread structure ('file_list').
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
 
+***************************************************************************
+
+***************************************************************************
+
 ---- SYNCHRONIZATION ----
 
 >> B7: The "exec" system call returns -1 if loading the new executable
 >> fails, so it cannot return before the new executable has completed
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
+
+***************************************************************************
+
+***************************************************************************
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -170,10 +214,18 @@ pointer associated with it in the thread structure ('file_list').
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
 
+***************************************************************************
+
+***************************************************************************
+
 ---- RATIONALE ----
 
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
+
+***************************************************************************
+
+***************************************************************************
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
