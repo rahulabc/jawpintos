@@ -87,6 +87,9 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static bool is_child_thread (tid_t pid);
+static struct thread * get_thread (tid_t tid);
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -203,6 +206,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  t->parent_id = thread_current()->tid;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -314,6 +318,11 @@ thread_exit (void)
   process_exit ();
 #endif
 
+  /* wake parent up if its waiting on it */
+  struct thread *parent = get_thread (thread_current()->parent_id);
+  if (parent)  {
+    sema_up (&parent->waiting_on_child_exit_sema);
+  }
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
@@ -495,6 +504,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->file_list);
   list_init (&t->children_list);
   list_init (&t->waited_children_list);
+  sema_init (&t->waiting_on_child_exit_sema, 0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -682,4 +692,59 @@ add_thread_to_exited_list (tid_t pid, int status)
   list_push_back (&exited_list, &e_elem->elem);
   lock_release (&exited_list_lock);
 }
+
+bool
+is_child_thread (tid_t pid) 
+{
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  // printf ("is_child_thread: \n");
+  for (e = list_begin (&t->children_list);
+       e != list_end (&t->children_list);
+       e = list_next (e))
+    {
+      struct child_elem *ce = list_entry (e, struct child_elem, elem);
+      // printf ("   parent: %d, child: %d\n", thread_current()->tid, ce->pid);
+      if (ce->pid == pid) 
+        return true;
+    }
+  return false;
+}
+
+struct thread *
+get_thread (tid_t tid)
+{
+  struct thread *ret_thread = NULL;
+  lock_acquire (&all_list_lock);
+  struct list_elem *e;
+
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+      if (t->tid == tid) 
+        { 
+           ret_thread = t;
+           break;
+        }
+    }
+  lock_release (&all_list_lock);
+  return ret_thread;
+}
+
+int 
+thread_wait_on_child_exit (tid_t child_tid)
+{
+  // printf ("looking for parent: %d, child: %d\n", thread_current()->tid, child_tid);
+  if ( !is_child_thread (child_tid) )
+    return -1;
+  
+  if ( !does_thread_exist (child_tid) ) 
+    return get_exit_status (child_tid);  
+  
+  // my child and it is running...
+  sema_down (&thread_current()->waiting_on_child_exit_sema);
+  return get_exit_status (child_tid);
+}
+
 

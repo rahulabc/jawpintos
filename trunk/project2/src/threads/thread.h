@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "filesys/filesys.h"
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -113,6 +114,9 @@ struct thread
 
     /* executable file so it can allow deny writes when in existence */
     struct file *exec_file;
+    
+    tid_t parent_id;
+    struct semaphore waiting_on_child_exit_sema;
   };
 
 
@@ -156,5 +160,13 @@ bool does_thread_exist (tid_t tid);
 void free_thread_from_exit_list (tid_t pid);
 int get_exit_status (tid_t pid);
 void add_thread_to_exited_list (tid_t pid, int status);
+
+int thread_wait_on_child_exit (tid_t child_tid);
+
+struct child_elem
+  {
+    tid_t pid;
+    struct list_elem elem;
+  };
 
 #endif /* threads/thread.h */

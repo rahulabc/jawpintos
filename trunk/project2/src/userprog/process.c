@@ -75,6 +75,14 @@ process_execute (const char *file_name)
   lock_release (&child_args.lock);
   free (exec_name);
 
+  if (child_args.status) 
+    {
+      struct thread *t = thread_current ();
+      struct child_elem *c_elem = (struct child_elem *) (malloc (sizeof(struct child_elem)));
+      c_elem->pid = tid;
+      list_push_back (&t->children_list, &c_elem->elem);
+    }
+
   palloc_free_page (fn_copy);  
 
   if (!child_args.status) 
@@ -227,10 +235,8 @@ start_process (void *args)
 int
 process_wait (tid_t child_tid) 
 {
-
-  while (does_thread_exist (child_tid))
-    ;
-  return get_exit_status(child_tid);
+  int ret = thread_wait_on_child_exit (child_tid);
+  return ret;
 }
 
 /* Free the current process's resources. */
