@@ -13,13 +13,6 @@ struct file_elem
     struct list_elem elem;
   };
 
-/* Children list element */
-struct child_elem
-  {
-    tid_t pid;
-    struct list_elem elem;
-  };
-
 void syscall_init (void);
 /* simple exit */
 void syscall_simple_exit (struct intr_frame *f, int status);

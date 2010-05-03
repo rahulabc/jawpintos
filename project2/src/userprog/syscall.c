@@ -202,17 +202,6 @@ syscall_exec (struct intr_frame *f, void *cur_sp)
       f->eax = -1;
       return;
     }
-
-  struct thread *t = thread_current ();
-  struct child_elem *c_elem;
-  MALLOC_AND_VALIDATE(f, c_elem, sizeof (struct child_elem)); 
-
-  c_elem->pid = pid;
-  
-  // Need a lock
-  list_push_back (&t->children_list, &c_elem->elem);
-  // Need to release the lock
-
   f->eax = pid;
 }
 
