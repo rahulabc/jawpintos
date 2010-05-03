@@ -29,10 +29,12 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* element for exited_list which stores the pid of the process
+   that has exited or has been terminated */
 struct exit_elem 
   { 
-    tid_t pid;
-    int status;
+    tid_t pid;               
+    int status;              /* return status the exit syscall received */
     struct list_elem elem;
   };
 

@@ -8,7 +8,7 @@
 /* File list element */
 struct file_elem
   {
-    int fd;
+    int fd;                  /* file descriptor */
     struct file *file;
     struct list_elem elem;
   };
