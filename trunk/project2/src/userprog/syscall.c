@@ -79,7 +79,7 @@ syscall_simple_exit (struct intr_frame *f, int status)
       e = list_pop_back (&t->children_list);
       struct child_elem *c_elem = list_entry (e, struct child_elem, elem);
       // free children from the global exit_list
-      free_thread_from_exit_list(c_elem->pid);
+      free_thread_from_exit_list (c_elem->pid);
       free (c_elem);
     }
   while (!list_empty (&t->waited_children_list))
@@ -93,30 +93,30 @@ syscall_simple_exit (struct intr_frame *f, int status)
   // allow file write to executable...
   if (t->exec_file) 
     {
-      file_allow_write ( t->exec_file );
-      file_close ( t->exec_file );
+      file_allow_write (t->exec_file);
+      file_close (t->exec_file);
     }
   thread_exit ();
   f->eax = status;
 }
 
 #define MALLOC_AND_VALIDATE(f, var, size)   \
-({                                      \
-  var = (typeof(var)) malloc (size);    \
-  if (var == NULL)                      \
-     {                                  \
-       syscall_simple_exit (f, -1);     \
-       return;                          \
-     }                                  \
+({                                          \
+  var = (typeof (var)) malloc (size);       \
+  if (var == NULL)                          \
+     {                                      \
+       syscall_simple_exit (f, -1);         \
+       return;                              \
+     }                                      \
 })
 
-#define VALIDATE_AND_GET_ARG(cur_sp,var,f)   \
-({ if (syscall_invalid_ptr (cur_sp))         \
-     {               \
-       syscall_simple_exit (f, -1);      \
-       return;             \
-     }               \
-  var = *(typeof (var)*)cur_sp;        \
+#define VALIDATE_AND_GET_ARG(cur_sp,var,f)  \
+({ if (syscall_invalid_ptr (cur_sp))        \
+     {                                      \
+       syscall_simple_exit (f, -1);         \
+       return;                              \
+     }                                      \
+  var = *(typeof (var)*)cur_sp;             \
 })
 
 static void
@@ -135,11 +135,9 @@ syscall_handler (struct intr_frame *f)
         syscall_exit (f, cur_sp);
         break;
       case SYS_EXEC:
-  //  printf("system call SYS_EXEC!\n");
         syscall_exec (f, cur_sp);
         break;
       case SYS_WAIT:
-  //        printf("system call SYS_WAIT!\n");
         syscall_wait (f, cur_sp);
         break;
       case SYS_CREATE:
