@@ -180,7 +180,6 @@ struct child_elem
   {
     tid_t pid;
     struct list_elem elem;
-    struct list_elem elemw;
   };
 
 struct wait_child_elem
