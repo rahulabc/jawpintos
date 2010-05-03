@@ -169,4 +169,10 @@ struct child_elem
     struct list_elem elem;
   };
 
+struct wait_child_elem
+  {
+    tid_t pid;
+    struct list_elem elem;
+  };
+
 #endif /* threads/thread.h */

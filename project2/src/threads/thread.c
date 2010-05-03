@@ -633,7 +633,7 @@ does_thread_exist (tid_t tid)
       struct thread *t = list_entry (e, struct thread, allelem);
       if (t->tid == tid) 
         {
-          lock_release (&all_list_lock);
+	  lock_release (&all_list_lock);
           return true;
         }
     }
@@ -698,13 +698,11 @@ is_child_thread (tid_t pid)
 {
   struct thread *t = thread_current();
   struct list_elem *e;
-  // printf ("is_child_thread: \n");
   for (e = list_begin (&t->children_list);
        e != list_end (&t->children_list);
        e = list_next (e))
     {
       struct child_elem *ce = list_entry (e, struct child_elem, elem);
-      // printf ("   parent: %d, child: %d\n", thread_current()->tid, ce->pid);
       if (ce->pid == pid) 
         return true;
     }
@@ -735,12 +733,14 @@ get_thread (tid_t tid)
 int 
 thread_wait_on_child_exit (tid_t child_tid)
 {
-  // printf ("looking for parent: %d, child: %d\n", thread_current()->tid, child_tid);
   if ( !is_child_thread (child_tid) )
-    return -1;
+      return -1;
   
   if ( !does_thread_exist (child_tid) ) 
-    return get_exit_status (child_tid);  
+    {
+      sema_down (&thread_current()->waiting_on_child_exit_sema);
+      return get_exit_status (child_tid);  
+    }
   
   // my child and it is running...
   sema_down (&thread_current()->waiting_on_child_exit_sema);
