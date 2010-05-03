@@ -432,7 +432,16 @@ process can continue after the child's load is done.
 >> for file descriptors?
 
 ***************************************************************************
-//TODO
+Each thread maintains a list of file descriptors it has opened along with
+their file pointers. These are used to map the descriptors to the files
+which are then used to access the filesys code. The advantages are that
+only our thread knows about its file descriptors. Error checking for thread
+for file-related calls can be made using this list and it can only decide 
+to service those that it has opened/opening. Disadvantages are that it 
+is a list and if there is a long list of files it has opened, this could
+be expensive to traverse. The other disadvantage is that file descriptor
+sharing between threads will require more work since we do not maintain 
+a global list of open file descriptors.
 
 Note on our filesys locks:
 We have common global locks for the 'create' and 'remove'. We have a common 
