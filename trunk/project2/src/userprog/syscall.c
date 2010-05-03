@@ -31,9 +31,6 @@ static void syscall_seek (struct intr_frame *f, void *cur_sp);
 static void syscall_tell (struct intr_frame *f, void *cur_sp);
 static void syscall_close (struct intr_frame *f, void *cur_sp);
 
-/* simple exit */
-//static void syscall_simple_exit (struct intr_frame *f, int status);
-
 /* pointer validity */
 static bool syscall_invalid_ptr (const void *ptr);
 
@@ -56,10 +53,9 @@ syscall_init (void)
 }
 
 void
-syscall_simple_exit (struct intr_frame *f, int status)
+thread_cleanup_and_exit (int status) 
 {
   printf("%s: exit(%d)\n", thread_name (), status);
-
   /* close all open file descriptors */
   struct thread *t = thread_current ();
  
@@ -107,25 +103,37 @@ syscall_simple_exit (struct intr_frame *f, int status)
       struct lock *l = list_entry (e, struct lock, elem);
       lock_release (l);
     }
-
+  /* wake parent up if its waiting on it */
+  struct thread *parent = get_thread (thread_current()->parent_id);
+  if (parent)  {
+    sema_up (&parent->waiting_on_child_exit_sema);
+  }
   thread_exit ();
+}
+
+void
+syscall_thread_exit (struct intr_frame *f, int status)
+{
+  thread_cleanup_and_exit (status);
   f->eax = status;
 }
 
+/* Macro for malloc ing and validating at the same time */
 #define MALLOC_AND_VALIDATE(f, var, size)   \
 ({                                          \
   var = (typeof (var)) malloc (size);       \
   if (var == NULL)                          \
      {                                      \
-       syscall_simple_exit (f, -1);         \
+       syscall_thread_exit (f, -1);         \
        return;                              \
      }                                      \
 })
 
+/* Macro for validating and getting data from the stack */
 #define VALIDATE_AND_GET_ARG(cur_sp,var,f)  \
 ({ if (syscall_invalid_ptr (cur_sp))        \
      {                                      \
-       syscall_simple_exit (f, -1);         \
+       syscall_thread_exit (f, -1);         \
        return;                              \
      }                                      \
   var = *(typeof (var)*)cur_sp;             \
@@ -181,7 +189,7 @@ syscall_handler (struct intr_frame *f)
         break;
       default :
         printf ("Invalid system call! #%d\n", syscall_num);
-        syscall_simple_exit (f, -1);
+        syscall_thread_exit (f, -1);
         break;
     }
 }
@@ -197,7 +205,7 @@ syscall_exit (struct intr_frame *f, void *cur_sp)
 {
   int status;
   VALIDATE_AND_GET_ARG(cur_sp, status, f); 
-  syscall_simple_exit (f, status);
+  syscall_thread_exit (f, status);
 }
 
 static void
@@ -208,7 +216,7 @@ syscall_exec (struct intr_frame *f, void *cur_sp)
 
   if (syscall_invalid_ptr (cmd_line))
     {
-      syscall_simple_exit (f, -1);
+      syscall_thread_exit (f, -1);
       return;
     }
   
@@ -277,7 +285,7 @@ syscall_create (struct intr_frame *f, void *cur_sp)
 
   if (syscall_invalid_ptr (file))
     {
-      syscall_simple_exit (f, -1);
+      syscall_thread_exit (f, -1);
       return;
     }
   lock_acquire (&create_remove_filesys_lock);
@@ -292,7 +300,7 @@ syscall_remove (struct intr_frame *f, void *cur_sp)
   VALIDATE_AND_GET_ARG (cur_sp, file, f);
   if (syscall_invalid_ptr (file))
     {
-      syscall_simple_exit (f, -1);
+      syscall_thread_exit (f, -1);
       return;
     }
   lock_acquire (&create_remove_filesys_lock);
@@ -310,7 +318,7 @@ syscall_open (struct intr_frame *f, void *cur_sp)
   VALIDATE_AND_GET_ARG (cur_sp, file_name, f);
   if (syscall_invalid_ptr (file_name))
     {
-      syscall_simple_exit (f, -1);
+      syscall_thread_exit (f, -1);
       return;
     }
 
@@ -349,7 +357,7 @@ syscall_filesize (struct intr_frame *f, void *cur_sp)
       lock_release (&write_filesys_lock);
     }
   else
-    syscall_simple_exit (f, -1);
+    syscall_thread_exit (f, -1);
 }
 
 static void
@@ -373,7 +381,7 @@ syscall_read (struct intr_frame *f, void *cur_sp)
       syscall_invalid_ptr (buffer) ||
       syscall_invalid_ptr (buffer + length))
     {
-      syscall_simple_exit (f, -1);
+      syscall_thread_exit (f, -1);
       return;
     }
 
@@ -393,7 +401,7 @@ syscall_read (struct intr_frame *f, void *cur_sp)
       lock_release (&read_filesys_lock);
     }
   else
-    syscall_simple_exit (f, -1);
+    syscall_thread_exit (f, -1);
 }
 
 static void 
@@ -417,7 +425,7 @@ syscall_write (struct intr_frame *f, void *cur_sp)
       syscall_invalid_ptr (buffer) ||
       syscall_invalid_ptr (buffer + length))
     {
-      syscall_simple_exit (f, -1);
+      syscall_thread_exit (f, -1);
       return;
     }
 
@@ -438,7 +446,7 @@ syscall_write (struct intr_frame *f, void *cur_sp)
       lock_release (&read_filesys_lock);
     }
   else
-    syscall_simple_exit (f, -1);
+    syscall_thread_exit (f, -1);
 }
 
 static void
@@ -460,7 +468,7 @@ syscall_seek (struct intr_frame *f, void *cur_sp)
       lock_release (&read_filesys_lock);
     }
   else
-    syscall_simple_exit (f, -1);
+    syscall_thread_exit (f, -1);
 }
 
 static void 
@@ -479,7 +487,7 @@ syscall_tell (struct intr_frame *f, void *cur_sp)
       lock_release (&read_filesys_lock);
     }
   else
-    syscall_simple_exit (f, -1);
+    syscall_thread_exit (f, -1);
 }
 
 static void
@@ -504,7 +512,7 @@ syscall_close (struct intr_frame *f, void *cur_sp)
           return;
         }
     }  
-  syscall_simple_exit (f, -1); // Need this?
+  syscall_thread_exit (f, -1); // Need this?
 }
 
 
