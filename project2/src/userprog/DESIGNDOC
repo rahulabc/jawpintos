@@ -137,9 +137,6 @@ In thread.h ....
 struct thread
   {
     ...
-    /* executable file pointer */
-    struct file *efile;
-
     /* File descriptor list */
     struct list file_list;
 
@@ -164,11 +161,6 @@ struct thread
     struct list acquired_locks;
   };
 
-/* executable file pointer */
-struct file *efile; 
-
-// TODO: Anand efile
-
 /* File descriptor list */
 struct list file_list;
        
@@ -186,10 +178,11 @@ struct list waited_children_list;
 list of child processes that current thread has waited on to disallow
 current thread from waiting on the child thread more than once.
 
-/* executable file so it can allow deny writes when in existence */
+/* executable file so it can allow/deny writes when in existence */
 struct file *exec_file;
 
-// TODO: Anand exec_file
+current thread's executable file, so we can deny writes when thread is 
+in existence.
     
 /* parent thread id */
 tid_t parent_id;
@@ -322,7 +315,8 @@ We currently maintain a single global file-descriptor generator ('next_fd')
 across the OS. This gets incremented each time an 'open' call is made. So a 
 given file-name can be associated with multiple file descriptors. We 
 additionally also maintain a list of open file descriptors and the file 
-pointer associated with it in the thread structure ('file_list').
+pointer associated with it in the thread structure ('file_list'). This
+allows a thread to close only file descriptors it has opened. 
 ***************************************************************************
 
 ---- ALGORITHMS ----

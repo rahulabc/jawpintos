@@ -534,7 +534,6 @@ find_file (int fd)
 {
   struct thread *t = thread_current ();
   struct list_elem *e;
-  // NEED TO LOCK THIS 
   for (e = list_begin (&t->file_list);
        e != list_end (&t->file_list);
        e = list_next (e))
