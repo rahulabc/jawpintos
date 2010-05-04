@@ -351,7 +351,7 @@ In our design, each parent process keeps a list of its child processes
 waited on before ('waited_children_list'). 
 
 When a wait on a pid is called, the parent first goes through its 
-children_list and finds if the pid corresponds to its own child. If not, 
+children_list and finds if the pid corresponds to is its own child. If not, 
 wait returns -1. After confirming that it is its child, the parent checks 
 if it had already waited on the pid before by checking 
 waited_children_list. If it has, wait returns -1. Otherwise, it waits on
@@ -416,6 +416,17 @@ process can continue after the child's load is done.
 >> there any special cases?
 
 ***************************************************************************
+Firstly each parent maintains a list of child_pid's that it has exec'd.
+Each process adds its pid to a global exited list when it exits. Parents
+wait on threads by calling 'thread_wait_on_child_exit' with the child id.
+P calls wait(C) before C exits: C is not yet in the 'exited' list. So
+P just waits on C.
+P calls wait(C) after C exits: Either C is no more in the all_list, in 
+which case P just returns the exit status of C that C put in the exit_list
+when it exited.
+
+The parent when it exits, clears its children from the exited list so
+as to allow keep this list small. 
 //TODO
 ***************************************************************************
 
