@@ -238,15 +238,15 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
 
   /* check pid validity */
   struct thread *t = thread_current ();
-    
+  
+  /* find its child to wait on */  
   struct list_elem *e;
-  // Need to lock
   for (e = list_begin (&t->children_list); 
        e != list_end (&t->children_list);
        e = list_next (e))
     {
       struct child_elem *c_elem = list_entry (e, struct child_elem, elem);
-      if (c_elem->pid == pid)
+      if (c_elem->pid == pid) /* found child */
         {
           /* if child is already waited on before, return -1 */
           struct list_elem *waited_e;
@@ -254,19 +254,20 @@ syscall_wait (struct intr_frame *f, void *cur_sp)
                waited_e != list_end (&t->waited_children_list);
                waited_e = list_next (waited_e))
             {
-              struct wait_child_elem *waited_c_elem = list_entry (waited_e, struct wait_child_elem, elem);
-              if (waited_c_elem->pid == pid) 
+              struct wait_child_elem *waited_c_elem = 
+                      list_entry (waited_e, struct wait_child_elem, elem);
+              if (waited_c_elem->pid == pid)  /* already waited on */
                 {
-                  f->eax = -1;
+                  f->eax = -1; /* return -1 */
                   return;
                 }
             }
-          /* mark child as already waited on */
+          /* mark child as already waited on wait on it */
           struct wait_child_elem *new_wait_c_elem;
           MALLOC_AND_VALIDATE (f, new_wait_c_elem, sizeof (struct wait_child_elem)); 
           new_wait_c_elem->pid = pid;
           list_push_back (&t->waited_children_list, &new_wait_c_elem->elem);
-          f->eax = process_wait (pid); // wrong status
+          f->eax = process_wait (pid); 
           return;
         }
     }
