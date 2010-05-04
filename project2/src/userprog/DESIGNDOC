@@ -325,16 +325,18 @@ allows a thread to close only file descriptors it has opened.
 >> kernel.
 
 ***************************************************************************
-For reading to and writing from the buffer, we first check the buffer 
-pointer whether it is non-null, in user space (is_user_vaddr), and 
-mapping to physical memory (pagedir_get_page). Then, we check the 
-validity of end of the buffer (buffer + length). After that, we check
-the validity of every (buffer + PGSIZE * i) for i = 1, 2, and so on as 
-long as the sum is less than the end of the buffer. Then, in order to
-read and write, a lock for the file system has to be acquired and 
-file_read, file_write is called respectively. Also, for the executable
-file that is loaded in process.c, we do file_deny_write to prevent
-other threads writing on this file.  
+For reading to and writing from the buffer that is part of the user data, 
+we first check whether the buffer pointer is non-null, that it is in user 
+space (is_user_vaddr), and is mapped to physical memory (pagedir_get_page). 
+We then similarly check the validity of end of the buffer (buffer + length). 
+After that, we check the validity of every (buffer + PGSIZE * i) for i = 1, 2, 
+and so on as long as the sum is less than the end of the buffer. 
+
+Then, in order to read and write, a lock for the file system has to be 
+acquired and file_read, file_write is called respectively. (filesys protection
+is described in more detail in B10). Also, for the executable file that is 
+loaded in process.c, we do file_deny_write to prevent other threads writing 
+on this file. 
 ***************************************************************************
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
