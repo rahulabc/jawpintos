@@ -440,17 +440,35 @@ process can continue after the child's load is done.
 
 ***************************************************************************
 Firstly each parent maintains a list of child_pid's that it has exec'd.
-Each process adds its pid to a global exited list when it exits. Parents
-wait on threads by calling 'thread_wait_on_child_exit' with the child id.
-P calls wait(C) before C exits: C is not yet in the 'exited' list. So
-P just waits on C.
-P calls wait(C) after C exits: Either C is no more in the all_list, in 
-which case P just returns the exit status of C that C put in the exit_list
-when it exited.
+Each process adds its pid to a global exited list when it exits, sema_up's
+its parent (if any) that might be waiting on. And then only does it 
+removes itself from the all_list. Parents wait on threads by calling 
+'thread_wait_on_child_exit' (in thread.c) with the child id.
 
-The parent when it exits, clears its children from the exited list so
-as to allow keep this list small. 
-//TODO
+P calls wait(C) before C exits: C is still in the 'all_list'. So
+P just waits on C and then returns its exit status after it has been woken
+up on C's exit.  In the case where C is exiting and has woken up the parent, 
+added its exit status, but not yet removed itself from the 'all_list', 
+the parent as described, waits on the child. 
+
+P calls wait(C) after C exits: Here C is no more in the all_list, in 
+which case P just returns the exit status of C that C put in the exit_list
+when it exited (note that C only removes itself from the all_list after
+it has added its exit status into the 'exit_list'). 
+
+When a child unexpectedly exits, it calls 'thread_cleanup_and_exit' and
+sema_ups its parents 'waited_on_child_exit_sema'. This ensures that the 
+parent is always woken up even if the child dies unexpectedly. 
+
+If P dies without waiting, the child will not find its parent in the
+'all_list' and hence will not be 'sema_up'ing its parent.
+
+If P exits after C has exited, it is woken up during C's exit and normally
+exits and cleans up in 'thread_cleanup_and_exit' where it releases all
+held locks and resources (see also B6).  
+ 
+Additionaly, note that the parent when it exits, clears its children from 
+the exited list so as to allow keep this list small. 
 ***************************************************************************
 
 ---- RATIONALE ----
