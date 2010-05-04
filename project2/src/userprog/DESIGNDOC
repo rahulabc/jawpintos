@@ -400,20 +400,25 @@ The macro that we have introduced in our design, VALIDATE_AND_GET_ARG,
 simplifies the code by replacing the validation and retrieval of arguments
 with a simple function-like macro. By incrementing the stack pointer for 
 appropriate number of times and calling the VALIDATE_AND_GET_ARG macro, 
-we can do a series of pointer validation without taking up too much space
-in the code.
+we can do a series of pointer validation without obscuring the primary 
+function of the code.
 
 When any error is detected we direct the process to a routine that we 
-have created, syscall_thread_exit, which frees all the memory space we have
-allocated for the thread, such as the file_list elements, child_list 
-elements, etc.
+have created, 'syscall_thread_exit', which frees all the memory space we 
+have allocated for the thread, such as the file_list elements, child_list 
+elements, etc. This occurs for failed mallocs as well (malloc validation 
+and error handling is simplified by using the MALLOC_AND_VALIDATE macro 
+in syscall.c).
 
 We also have included a 'acquired_locks' list in the thread struct which 
 is a list of all the locks that the thread has acquired. By keeping this 
 list, we can release the locks that have not been already released 
 because of the error.
 
-//TODO: give an example?
+For example, if malloc failed during syscall_wait, (during list population) 
+syscall_thread_exit is called in the macro MALLOC_AND_VALIDATE. This in 
+turn frees up any malloced thread list elems and locks that the thread 
+has acquired, but not yet released.
 ***************************************************************************
 
 ---- SYNCHRONIZATION ----
@@ -465,7 +470,7 @@ which case P just returns the exit status of C that C put in the exit_list
 when it exited (note that C only removes itself from the all_list after
 it has added its exit status into the 'exit_list'). 
 
-When a child unexpectedly exits, it calls 'thread_cleanup_and_exit' and
+When a child unexpectedly exits, it calls 'syscall_thread_exit' and
 sema_ups its parents 'waited_on_child_exit_sema'. This ensures that the 
 parent is always woken up even if the child dies unexpectedly. 
 
@@ -473,7 +478,7 @@ If P dies without waiting, the child will not find its parent in the
 'all_list' and hence will not be 'sema_up'ing its parent.
 
 If P exits after C has exited, it is woken up during C's exit and normally
-exits and cleans up in 'thread_cleanup_and_exit' where it releases all
+exits and cleans up in 'syscall_thread_exit' where it releases all
 held locks and resources (see also B6).  
  
 Additionaly, note that the parent when it exits, clears its children from 
