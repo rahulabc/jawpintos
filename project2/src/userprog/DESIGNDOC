@@ -381,7 +381,30 @@ the parent process can return from its wait () function.
 >> managing these issues.  Give an example.
 
 ***************************************************************************
-//TODO
+It is true that a lot of bad pointer value checking has to be done in each
+syscall. However, the actions that needs to be taken to retrieve the 
+argument values from the stack is exactly the same for all syscalls with
+some minor differences such as the types of the arguments that we get from
+the stack. 
+
+The macro that we have introduced in our design, VALIDATE_AND_GET_ARG, 
+simplifies the code by replacing the validation and retrieval of arguments
+with a simple function-like macro. By incrementing the stack pointer for 
+appropriate number of times and calling the VALIDATE_AND_GET_ARG macro, 
+we can do a series of pointer validation without taking up too much space
+in the code.
+
+When any error is detected we direct the process to a routine that we 
+have created, syscall_thread_exit, which frees all the memory space we have
+allocated for the thread, such as the file_list elements, child_list 
+elements, etc.
+
+We also have included a 'acquired_locks' list in the thread struct which 
+is a list of all the locks that the thread has acquired. By keeping this 
+list, we can release the locks that have not been already released 
+because of the error.
+
+//TODO: give an example?
 ***************************************************************************
 
 ---- SYNCHRONIZATION ----
