@@ -347,7 +347,19 @@ on this file.
 >> for improvement in these numbers, and how much?
 
 ***************************************************************************
-//TODO
+The least possible number of inspections of the page table would be 1
+in the case where the entire data falls exactly in the page (assuming 
+PG_SIZE is 4,096 bytes as exists). Using our method of checking (described
+in B3), the maximum number of inspections of the page table would be 2 for
+the 4,096 bytes of data.  For a system call that only copies 2 bytes of 
+data, we could still be spanning two pages and thus, atmost will still 
+need two inspections in the worst case. There is not much improvement 
+that can be made. 
+
+Note that in our specific implementation we always check atleast the 
+begin and the end of the buffer and thus incur atleast 2 inspections. This
+can be reduced to 1 (as described above), for the case where the data fits
+exactly in the page. 
 ***************************************************************************
 
 >> B5: Briefly describe your implementation of the "wait" system call
@@ -493,7 +505,11 @@ the exited list so as to allow keep this list small.
 >> kernel in the way that you did?
 
 ***************************************************************************
-//TODO
+The method we describe in B3, efficiently checks for buffer validities.
+However, it does so for every pointer access. While the code is quite 
+simple in this case, it can be made more efficient by following the second 
+approach suggested in the Pintos docs, which takes advantage of the MMU and
+bypasses the checks each time and exploits the page_fault mechanism.
 ***************************************************************************
 
 >> B10: What advantages or disadvantages can you see to your design
