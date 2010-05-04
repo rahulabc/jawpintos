@@ -375,14 +375,27 @@ syscall_read (struct intr_frame *f, void *cur_sp)
   /* terminate process when the provided arguments
      are invalid for the following reasons:
      1. invalid file descriptors
-     2. invalid buffer pointer
-     3. invalid end of buffer pointer */
+     2. invalid buffer start address
+     3. invalid buffer end address */
   if (fd == STDOUT_FILENO || fd < -1 ||
       syscall_invalid_ptr (buffer) ||
       syscall_invalid_ptr (buffer + length))
     {
       syscall_thread_exit (f, -1);
       return;
+    }
+  
+  /* terminate process if any page that is occupied by the 
+     buffer is invalid */
+  void *buffer_tmp_ptr = buffer + PGSIZE;
+  while (buffer_tmp_ptr < buffer + length)
+    {
+      if (syscall_invalid_ptr (buffer_tmp_ptr))
+	{
+	  syscall_thread_exit (f, -1);
+	  return;
+	}
+      buffer_tmp_ptr += PGSIZE;
     }
 
   ASSERT (fd >= 0);
@@ -419,14 +432,27 @@ syscall_write (struct intr_frame *f, void *cur_sp)
   /* terminate process when the provided arguments
      are invalid for the following reasons:
      1. invalid file descriptors
-     2. invalid buffer pointer
-     3. invalid end of buffer pointer */  
+     2. invalid buffer start address
+     3. invalid buffer end address */
   if (fd == STDIN_FILENO || fd < -1 ||
       syscall_invalid_ptr (buffer) ||
       syscall_invalid_ptr (buffer + length))
     {
       syscall_thread_exit (f, -1);
       return;
+    }
+
+  /* terminate process if any page that is occupied by the 
+     buffer is invalid */
+  void *buffer_tmp_ptr = buffer + PGSIZE;
+  while (buffer_tmp_ptr < buffer + length)
+    {
+      if (syscall_invalid_ptr (buffer_tmp_ptr))
+	{
+	  syscall_thread_exit (f, -1);
+	  return;
+	}
+      buffer_tmp_ptr += PGSIZE;
     }
 
   if (fd == STDOUT_FILENO)
