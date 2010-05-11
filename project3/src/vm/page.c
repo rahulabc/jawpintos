@@ -8,7 +8,7 @@ void valloc_init (size_t user_page_limit)
 
 void *valloc_get_page (enum palloc_flags flags)
 {
-  return palloc_get_page (flags);
+  return palloc_get_page (flags | PAL_ASSERT);
 }
 
 void *valloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
