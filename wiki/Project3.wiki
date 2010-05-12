@@ -5,4 +5,5 @@
   * can all page tables/frame tables be in kernel memory. 
   * is kernel memory swappable? (is it pageable? seems like it is)
   * is 'frame table' a mapping of kpage to upage?
+  * what are pde and pte? do we need to use/change 'pool' directly?
  
