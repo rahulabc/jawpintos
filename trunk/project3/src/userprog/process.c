@@ -63,7 +63,7 @@ process_execute (const char *file_name)
   
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = valloc_get_page (0);
+  fn_copy = malloc ((strlen (file_name)+1)*sizeof(char));
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
@@ -94,7 +94,7 @@ process_execute (const char *file_name)
       list_push_back (&t->children_list, &c_elem->elem);
     }
 
-  valloc_free_page (fn_copy);  
+  free (fn_copy);  
 
   if (!child_args.status) 
     tid = TID_ERROR;
@@ -482,8 +482,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 }
 
 /* load() helpers. */
-
-static bool install_page (void *upage, void *kpage, bool writable);
+/*
+static bool install_page (void *upage, void *kpage, bool writable); */
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
@@ -562,7 +562,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = valloc_get_page (PAL_USER);
+      uint8_t *kpage = valloc_get_page (PAL_USER, upage, writable);
       if (kpage == NULL)
         return false;
 
@@ -575,11 +575,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
       /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
+/*      if (!install_page (upage, kpage, writable)) 
         {
           valloc_free_page (kpage);
           return false; 
-        }
+        } */
 
       /* Advance. */
       read_bytes -= page_read_bytes;
@@ -595,20 +595,16 @@ static bool
 setup_stack (void **esp) 
 {
   uint8_t *kpage;
-  bool success = false;
 
-  kpage = valloc_get_page (PAL_USER | PAL_ZERO);
+  kpage = valloc_get_page (PAL_USER | PAL_ZERO, (uint8_t *) PHYS_BASE - PGSIZE, true );
   if (kpage != NULL) 
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE;
-      else
-        valloc_free_page (kpage);
+      *esp = PHYS_BASE;
+      return true;
     }
-  return success;
+  return false;
 }
-
+#if 0 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
    If WRITABLE is true, the user process may modify the page;
@@ -625,6 +621,13 @@ install_page (void *upage, void *kpage, bool writable)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  if ((pagedir_get_page (t->pagedir, upage) == NULL) &&
+       pagedir_set_page (t->pagedir, upage, kpage, writable))
+    {
+       add_frame_table (upage, kpage);
+       return true;
+    } 
+  return false;
 }
+
+#endif
