@@ -1,5 +1,3 @@
-#summary Questions
-
 = Questions =
   * should we be implementing heaps (malloc) for user processes?
   * should we implement stack allocation during page_fault handling?
