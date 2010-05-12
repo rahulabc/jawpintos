@@ -1,4 +1,4 @@
-#include "vm/page.h"
+#include "vm/frame.h"
 #include "threads/palloc.h"
 
 void valloc_init (size_t user_page_limit) 
@@ -8,7 +8,13 @@ void valloc_init (size_t user_page_limit)
 
 void *valloc_get_page (enum palloc_flags flags)
 {
-  return palloc_get_page (flags | PAL_ASSERT);
+  void *page = palloc_get_page (flags | PAL_ASSERT);
+  if (page == NULL) 
+    return page;
+  // populate page table
+  // populate this frame in the frame table
+  // return the virtual address 
+  return page;
 }
 
 void *valloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
