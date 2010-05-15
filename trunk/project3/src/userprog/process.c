@@ -124,10 +124,10 @@ push_arguments (void **esp, char *cmd_in)
       if (num_bytes_needed > PGSIZE)
 	return false;
 
-      *esp -= strlen(token) + 1;
-      new_arg->addr = *esp;
       list_push_back (&argv_list, &new_arg->elem);
-      memcpy (*esp, (void *)token, strlen (token) + 1);
+      memcpy (*esp - strlen (token) - 1, (void *)token, strlen (token) + 1);
+      *esp -= strlen (token) + 1;
+      new_arg->addr = *esp;
     }
 
   int argc = list_size (&argv_list);
@@ -145,13 +145,13 @@ push_arguments (void **esp, char *cmd_in)
   int zero = 0;
   for (i = 0; i < addr_diff; ++i) 
     {
+      memcpy (*esp - 1, &zero, sizeof (uint8_t)); 
       *esp -= 1;
-      memcpy (*esp, &zero, sizeof (uint8_t)); 
     }
   
   /* sentinel */
+  memcpy (*esp - sizeof (char *), &zero, sizeof (char *));
   *esp -= sizeof (char *);
-  memcpy (*esp, &zero, sizeof (char *));
 
   /* argument adresses */
   struct list_elem *e;
@@ -159,23 +159,23 @@ push_arguments (void **esp, char *cmd_in)
     {
       e = list_pop_back (&argv_list);
       struct argv_elem *a = list_entry (e, struct argv_elem, elem);
+      memcpy (*esp - sizeof (char *), &a->addr, sizeof (char *));
       *esp -= sizeof (char *);
-      memcpy (*esp, &a->addr, sizeof (char *));
       free (a);
     }
 
   /* argv */
   void *tmp = *esp;
+  memcpy (*esp - sizeof (char **), &tmp, sizeof (char **));
   *esp -= sizeof (char **);
-  memcpy (*esp, &tmp, sizeof (char **));
   
   /* argc */
+  memcpy (*esp - sizeof (int), &argc, sizeof (int));
   *esp -= sizeof (int);
-  memcpy (*esp, &argc, sizeof (int));
   
   /* return address */
+  memcpy (*esp - sizeof (void *), &zero, sizeof (void *));
   *esp -= sizeof (void *);
-  memcpy (*esp, &zero, sizeof (void *));
 
   return true;
 }

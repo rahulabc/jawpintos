@@ -378,6 +378,7 @@ syscall_read (struct intr_frame *f, void *cur_sp)
      1. invalid file descriptors
      2. invalid buffer start address
      3. invalid buffer end address */
+
   if (fd == STDOUT_FILENO || fd < -1 ||
       syscall_invalid_ptr (buffer) ||
       syscall_invalid_ptr (buffer + length))
@@ -445,7 +446,7 @@ syscall_write (struct intr_frame *f, void *cur_sp)
 
   /* terminate process if any page that is occupied by the 
      buffer is invalid */
-  void *buffer_tmp_ptr = buffer + PGSIZE;
+  const void *buffer_tmp_ptr = buffer + PGSIZE;
   while (buffer_tmp_ptr < buffer + length)
     {
       if (syscall_invalid_ptr (buffer_tmp_ptr))

@@ -5,6 +5,9 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "userprog/syscall.h"
+#include "vm/page.h"
+#include "vm/frame.h"
+#include "threads/vaddr.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -148,6 +151,22 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+
+  if (user)
+    {
+      if (!is_user_vaddr (fault_addr))
+	{
+	  syscall_thread_exit (f, -1);
+	  return;
+	}
+    }
+  
+  /* stack growth */
+  if ((unsigned)fault_addr >= (unsigned)f->esp - 32) 
+    {
+      valloc_get_page (user ? PAL_USER : 0, pg_round_down (fault_addr), true);
+      return;
+    }
 
   syscall_thread_exit (f, -1);
   return;
