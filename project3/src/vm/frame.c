@@ -40,7 +40,6 @@ valloc_get_page (enum palloc_flags flags, void *upage, bool writable)
   else 
     valloc_free_page (kpage);
   return NULL;
-
 }
 
 static bool 
@@ -77,11 +76,24 @@ void *valloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 
 void valloc_free_page (void *page)
 {
-  palloc_free_page (page);
+  valloc_free_multiple (page, 1);
 }
 
 void valloc_free_multiple (void *pages, size_t page_cnt)
 {
+  // TODO: hash or list?
+  struct list_elem *e = list_begin (&frame_table);
+  while (e != list_end (&frame_table))
+    {
+      struct frame_elem *fe = list_entry (e, struct frame_elem, elem);
+      if (pages == fe->kpage)
+	{
+	  list_remove (e);
+	  free (fe);
+	  break;
+	}
+    }
+
   palloc_free_multiple (pages, page_cnt);
 }
 
