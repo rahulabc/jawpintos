@@ -13,4 +13,3 @@ void valloc_free_multiple (void *, size_t page_cnt);
 void frame_table_init (void);
 
 #endif /* vm/frame.h */
-

@@ -29,6 +29,7 @@
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 #else
 #include "tests/threads/tests.h"
 #endif
@@ -115,6 +116,7 @@ main (void)
   exception_init ();
   syscall_init ();
   frame_table_init ();
+  spt_init ();
 #endif
 
   /* Start thread scheduler and enable interrupts. */
