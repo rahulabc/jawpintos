@@ -146,6 +146,11 @@ syscall_handler (struct intr_frame *f)
   VALIDATE_AND_GET_ARG (f->esp, syscall_num, f);
   void *cur_sp = f->esp + sizeof (void *);
 
+  /* store user program stack pointer to the thread's 
+     user_esp before changing to kernel mode */
+  struct thread *t = thread_current ();
+  t->user_esp = f->esp;
+
   switch (syscall_num)
     {
       case SYS_HALT:
@@ -367,6 +372,7 @@ syscall_read (struct intr_frame *f, void *cur_sp)
   int fd;
   void * buffer;
   unsigned length;
+
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
   cur_sp += sizeof (void *);
   VALIDATE_AND_GET_ARG (cur_sp, buffer, f);
@@ -425,6 +431,7 @@ syscall_write (struct intr_frame *f, void *cur_sp)
   int fd;
   const void * buffer;
   unsigned length;
+
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
   cur_sp += sizeof (void *);
   VALIDATE_AND_GET_ARG (cur_sp, buffer, f);
@@ -547,12 +554,9 @@ syscall_close (struct intr_frame *f, void *cur_sp)
 static bool 
 syscall_invalid_ptr (const void *ptr)
 {
-  if (!is_user_vaddr (ptr) || 
-      !pagedir_get_page (thread_current ()->pagedir, ptr) ||
-      ptr == NULL) 
-    {
-      return true;
-    }
+  if (!is_user_vaddr (ptr) || ptr == NULL)    
+    return true;
+
   return false;
 }
 

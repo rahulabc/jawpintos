@@ -125,6 +125,9 @@ struct thread
     /* list of acquired locks that needs to be freed when
        process terminates before releasing all the locks */
     struct list acquired_locks;
+
+    /* save the current thread's stack pointer */
+    uint32_t *user_esp;
   };
 
 
