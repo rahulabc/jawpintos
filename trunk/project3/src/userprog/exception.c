@@ -152,6 +152,8 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  /* If in user mode, the fault address should always be 
+     in the user memory in the range of (0, PHYS_BASE) */
   if (user)
     {
       if (!is_user_vaddr (fault_addr))
@@ -161,13 +163,20 @@ page_fault (struct intr_frame *f)
 	}
     }
   
-  /* stack growth */
-  if ((unsigned)fault_addr >= (unsigned)f->esp - 32) 
+  /* stack allocation: 
+     if in user mode, use the interrupt frame's stack pointer,
+     if in kernel mode, use the saved user program's stack pointer in
+     the current thread */
+  struct thread *t = thread_current ();
+  if ((uint32_t)fault_addr >= 
+      (user ? (uint32_t) f->esp : (uint32_t)t->user_esp) - 32) 
     {
       valloc_get_page (user ? PAL_USER : 0, pg_round_down (fault_addr), true);
       return;
     }
 
+  /* If page fault was due to an unknown cause, thus a page fault from
+     accessing an inalid pointer, exit the program */
   syscall_thread_exit (f, -1);
   return;
 
