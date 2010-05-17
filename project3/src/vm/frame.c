@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
+#include "threads/vaddr.h"
 
 static bool install_page (void *upage, void *kpage, bool writable);
 static void add_frame_table (void *upage, void *kpage);
@@ -32,6 +33,7 @@ frame_table_init ()
 void *
 valloc_get_page (enum palloc_flags flags, void *upage, bool writable)
 {
+  ASSERT (upage == pg_round_down(upage));
   void *kpage = palloc_get_page (flags | PAL_ASSERT);
   if (kpage == NULL) 
     return kpage;
@@ -45,6 +47,7 @@ valloc_get_page (enum palloc_flags flags, void *upage, bool writable)
 static bool 
 install_page (void *upage, void *kpage, bool writable)
 {
+  ASSERT (upage == pg_round_down(upage));
   struct thread *t = thread_current (); 
 
   /* Verify that there's not already a page at that virtual
@@ -87,11 +90,12 @@ void valloc_free_multiple (void *pages, size_t page_cnt)
     {
       struct frame_elem *fe = list_entry (e, struct frame_elem, elem);
       if (pages == fe->kpage)
-	{
-	  list_remove (e);
-	  free (fe);
-	  break;
-	}
+        {
+          list_remove (e);
+          free (fe);
+          break;
+        }
+      e = list_next (e);
     }
 
   palloc_free_multiple (pages, page_cnt);
