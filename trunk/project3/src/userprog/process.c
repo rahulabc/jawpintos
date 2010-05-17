@@ -21,6 +21,7 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -553,6 +554,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   file_seek (file, ofs);
+  off_t cur_ofs = ofs;
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -562,24 +564,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = valloc_get_page (PAL_USER, upage, writable);
-      if (kpage == NULL)
-        return false;
-
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          valloc_free_page (kpage);
-          return false; 
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-/*      if (!install_page (upage, kpage, writable)) 
-        {
-          valloc_free_page (kpage);
-          return false; 
-        } */
+      spt_update_file (upage, file, cur_ofs, 
+                       page_read_bytes, page_zero_bytes, writable);
+      cur_ofs += page_read_bytes + page_zero_bytes;
 
       /* Advance. */
       read_bytes -= page_read_bytes;
