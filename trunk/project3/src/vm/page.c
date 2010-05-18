@@ -40,7 +40,7 @@ struct process_spt_elem
     off_t file_offset;
     int file_read_bytes;
     int file_zero_bytes;
-    int writable;
+    bool writable;
 
     struct hash_elem elem;
   };
