@@ -217,7 +217,6 @@ start_process (void *args)
   if (cmd_in_for_push_args == NULL)
     {
       thread_cleanup_and_exit (-1);
-      return;
     }
   strlcpy (cmd_in_for_push_args, file_name, strlen (file_name) + 1);
 

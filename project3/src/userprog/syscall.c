@@ -339,7 +339,13 @@ syscall_open (struct intr_frame *f, void *cur_sp)
     }
   struct thread *t = thread_current ();
   struct file_elem *f_elem;
-  MALLOC_AND_VALIDATE(f, f_elem, sizeof (struct file_elem)); 
+  f_elem = (struct file_elem*) malloc (sizeof (struct file_elem));
+  if (f_elem == NULL)
+    {
+      file_close (file);
+      syscall_thread_exit (f, -1);
+      return;
+    }
 
   f_elem->fd =fd;
   f_elem->file = file;
