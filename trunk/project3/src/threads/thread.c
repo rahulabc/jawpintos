@@ -682,7 +682,8 @@ add_thread_to_exited_list (tid_t pid, int status)
 { 
   struct exit_elem *e_elem = (struct exit_elem*) malloc (sizeof
 							 (struct exit_elem));
-  ASSERT (e_elem);
+  if (e_elem == NULL)
+    return;
   e_elem->pid = pid;
   e_elem->status = status;
   lock_acquire (&exited_list_lock);
