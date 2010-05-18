@@ -13,6 +13,8 @@
 #include <list.h>
 #include "devices/input.h"
 #include "userprog/process.h"
+#include "vm/page.h"
+#include "lib/user/syscall.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -30,6 +32,8 @@ static void syscall_write (struct intr_frame *f, void *cur_sp);
 static void syscall_seek (struct intr_frame *f, void *cur_sp);
 static void syscall_tell (struct intr_frame *f, void *cur_sp);
 static void syscall_close (struct intr_frame *f, void *cur_sp);
+static void syscall_mmap (struct intr_frame *f, void *cur_sp);
+static void syscall_munmap (struct intr_frame *f, void *cur_sp);
 
 /* pointer validity */
 static bool syscall_invalid_ptr (const void *ptr);
@@ -41,6 +45,7 @@ static struct lock next_fd_lock;
 static struct lock create_remove_filesys_lock;
 static struct lock read_filesys_lock;
 static struct lock write_filesys_lock;
+static struct lock next_mapping_id_lock;
 
 void
 syscall_init (void) 
@@ -49,6 +54,7 @@ syscall_init (void)
   lock_init (&create_remove_filesys_lock);
   lock_init (&write_filesys_lock);
   lock_init (&read_filesys_lock);
+  lock_init (&next_mapping_id_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -192,6 +198,12 @@ syscall_handler (struct intr_frame *f)
       case SYS_CLOSE:
         syscall_close (f, cur_sp);
         break;
+      case SYS_MMAP:
+        syscall_mmap (f, cur_sp);
+        break;
+      case SYS_MUNMAP:
+        syscall_munmap (f, cur_sp);
+        break;
       default :
         printf ("Invalid system call! #%d\n", syscall_num);
         syscall_thread_exit (f, -1);
@@ -203,6 +215,57 @@ static void
 syscall_halt (struct intr_frame *f UNUSED, void *cur_sp UNUSED)
 {
   shutdown_power_off ();
+}
+
+static void 
+syscall_mmap (struct intr_frame *f, void *cur_sp)
+{
+  int fd;
+  VALIDATE_AND_GET_ARG (cur_sp, fd, f); 
+  cur_sp += sizeof (int);
+  void *addr;
+  VALIDATE_AND_GET_ARG (cur_sp, addr, f);
+  if (addr == 0 || pg_ofs (addr) != 0 || fd==0 || fd==1) 
+    {
+       f->eax = -1;
+       return;
+    }
+  struct file *fil = find_file (fd); 
+  if (fil == 0) 
+    {
+       f->eax = -1;
+       return;
+    }
+  off_t flen = file_length (fil);
+  if (flen == 0) 
+    {
+       f->eax = -1;
+       return;
+    }
+  off_t cur_ofs = 0; 
+  while (flen >= PGSIZE) 
+    {
+      spt_update_file (addr+cur_ofs, fil, cur_ofs, PGSIZE, 0, false);
+      cur_ofs += PGSIZE;
+      flen -= PGSIZE;
+    }
+  if (flen > 0) 
+    {
+      spt_update_file (addr+cur_ofs, fil, cur_ofs, flen, PGSIZE-flen, false);
+    }
+  static int next_mapping_id = 0;
+  lock_acquire (&next_mapping_id_lock);
+  f->eax = ++next_mapping_id;
+  lock_release (&next_mapping_id_lock);
+  return;
+}
+
+static void 
+syscall_munmap (struct intr_frame *f UNUSED, void *cur_sp UNUSED)
+{
+  mapid_t mapping;
+  VALIDATE_AND_GET_ARG (cur_sp, mapping, f); 
+  return;
 }
 
 static void 
