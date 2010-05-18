@@ -77,19 +77,19 @@ void *valloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
   return palloc_get_multiple (flags, page_cnt);
 }
 
-void valloc_free_page (void *page)
+void valloc_free_page (void *kpage)
 {
-  valloc_free_multiple (page, 1);
+  valloc_free_multiple (kpage, 1);
 }
 
-void valloc_free_multiple (void *pages, size_t page_cnt)
+void valloc_free_multiple (void *kpages, size_t page_cnt)
 {
   // TODO: hash or list?
   struct list_elem *e = list_begin (&frame_table);
   while (e != list_end (&frame_table))
     {
       struct frame_elem *fe = list_entry (e, struct frame_elem, elem);
-      if (pages == fe->kpage)
+      if (kpages == fe->kpage)
         {
           list_remove (e);
           free (fe);
@@ -98,7 +98,7 @@ void valloc_free_multiple (void *pages, size_t page_cnt)
       e = list_next (e);
     }
 
-  palloc_free_multiple (pages, page_cnt);
+  palloc_free_multiple (kpages, page_cnt);
 }
 
 
