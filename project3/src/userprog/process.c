@@ -69,7 +69,13 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *exec_name = (char *) malloc ( (strlen (file_name) + 1) * sizeof (char));
+  char *exec_name = (char *) malloc ( (strlen (file_name) + 1) * 
+				      sizeof (char));
+  if (exec_name == NULL)
+    {
+      free (fn_copy);
+      return TID_ERROR;
+    }
   strlcpy (exec_name, file_name, strlen (file_name) + 1);
   char *save_ptr;
   strtok_r (exec_name, " ", &save_ptr);
@@ -78,6 +84,15 @@ process_execute (const char *file_name)
   struct process_execute_args child_args;
   child_args.status = false; // assumed failed unless it didn't
   child_args.file_name = fn_copy;
+
+  struct child_elem *c_elem = (struct child_elem *) 
+    (malloc (sizeof (struct child_elem)));
+  if (c_elem == NULL)
+    {
+      free (fn_copy);
+      free (exec_name);
+      return TID_ERROR;
+    }
   
   lock_init (&child_args.lock);
   lock_acquire (&child_args.lock);
@@ -90,15 +105,15 @@ process_execute (const char *file_name)
   if (child_args.status) 
     {
       struct thread *t = thread_current ();
-      struct child_elem *c_elem = (struct child_elem *) (malloc (sizeof (struct child_elem)));
       c_elem->pid = tid;
       list_push_back (&t->children_list, &c_elem->elem);
     }
-
+  else 
+    {
+      tid = TID_ERROR;
+      free (c_elem);
+    }
   free (fn_copy);  
-
-  if (!child_args.status) 
-    tid = TID_ERROR;
   return tid;
 }
 
@@ -119,6 +134,11 @@ push_arguments (void **esp, char *cmd_in)
     {
       struct argv_elem *new_arg = 
 	(struct argv_elem *) malloc (sizeof (struct argv_elem));
+      if (new_arg == NULL)
+	{
+	  thread_cleanup_and_exit (-1);
+	  return false;
+	}
       new_arg->argv = token;
 
       num_bytes_needed += strlen(token) + 1;
@@ -192,7 +212,13 @@ start_process (void *args)
   bool success;
 
   /* copy the whole command line input */
-  char *cmd_in_for_push_args = (char *) malloc ( (strlen(file_name) + 1) * sizeof (char));
+  char *cmd_in_for_push_args = 
+    (char *) malloc ( (strlen(file_name) + 1) * sizeof (char));
+  if (cmd_in_for_push_args == NULL)
+    {
+      thread_cleanup_and_exit (-1);
+      return;
+    }
   strlcpy (cmd_in_for_push_args, file_name, strlen (file_name) + 1);
 
   /* modify file_name to contain only the file name */

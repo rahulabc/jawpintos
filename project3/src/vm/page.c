@@ -202,15 +202,6 @@ bool spt_load_page(void *fault_addr, struct intr_frame *f, bool user)
       valloc_get_page (PAL_USER, upage, true);
       return true;
     } 
-  if (! user)  // REVISIT?
-    {
-      if (!is_user_vaddr (fault_addr))  // if kernel address
-        { 
-          // allow kernel to access any kernel section
-          valloc_get_page (0, upage, true);
-          return true;
-        }
-    } 
       
   struct process_spt_elem *pse = get_process_spt_elem (t->tid, upage);
   if (pse->source == FRAME_FILE)  
