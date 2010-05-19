@@ -4,12 +4,29 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "threads/thread.h"
 
-void valloc_init (size_t user_page_limit);
-void *valloc_get_page (enum palloc_flags, void *upage, bool writable);
-void *valloc_get_multiple (enum palloc_flags, size_t page_cnt);
-void valloc_free_page (void *);
-void valloc_free_multiple (void *, size_t page_cnt);
-void frame_table_init (void);
+
+struct list frame_table;
+struct lock frame_lock;
+
+
+
+struct frame_element
+  {
+    uint32_t *kpage;
+    uint32_t *upage;
+    tid_t tid;
+    struct list_elem frame_elem;
+  };
+
+
+void frame_init (void);
+void *frame_get_page (enum palloc_flags flags);
+bool frame_table_update (tid_t tid, uint32_t *upage, uint32_t *kpage);
+void frame_element_set (struct frame_element *fe, uint32_t *upage, tid_t tid);
+struct frame_element *frame_element_create (uint32_t *kpage);
+struct frame_element *frame_table_find (uint32_t *kpage);
+void frame_free_page (uint32_t *kpage);
 
 #endif /* vm/frame.h */

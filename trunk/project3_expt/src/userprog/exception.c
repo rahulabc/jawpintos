@@ -8,6 +8,7 @@
 #include "vm/page.h"
 #include "vm/frame.h"
 #include "threads/vaddr.h"
+#include "userprog/process.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -152,8 +153,7 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* If in user mode, the fault address should always be 
-     in the user memory in the range of (0, PHYS_BASE) */
+  /* user mode, kernel access */
   if (user)
     {
       if (!is_user_vaddr (fault_addr))
@@ -162,12 +162,80 @@ page_fault (struct intr_frame *f)
 	  return;
 	}
     }
-  
-  if (spt_load_page (fault_addr, f, user) )
-    return;
-  
-  /* If page fault was due to an unknown cause, thus a page fault from
-     accessing an inalid pointer, exit the program */
+
+  /* stack access */
+  struct thread *t = thread_current ();
+  uint32_t *upage = pg_round_down (fault_addr);
+
+  if (is_user_vaddr (fault_addr) && 
+      fault_addr  >= (user ? f->esp : t->user_esp) - 32)
+    {
+      enum frame_source source = spt_get_source (t->tid, 
+						 upage);
+      uint32_t *kpage = frame_get_page (PAL_USER); 
+      if (kpage == NULL)
+	syscall_thread_exit (f, -1);
+
+      if (source == FRAME_INVALID)
+	{      
+	  install_page (upage, kpage, true); /* TODO: what if false? */
+	  return;
+	}
+      else if (source == FRAME_SWAP)
+	{
+	  swap_fetch (t->tid, upage, kpage);     /* TODO: what if false? */
+	  
+	  return;
+	}
+    }
+
+  struct spt_directory_element *sde = 
+    spt_directory_find (t->tid);
+  if (sde != NULL)
+    {
+      struct spt_element *se = spt_find (sde, upage);
+      if (se != NULL)
+	{
+	  uint32_t *kpage = frame_get_page (user ? PAL_USER : 0);
+	  if (se->source == FRAME_FILE)
+	    {
+	      file_seek (se->file, se->file_offset);
+	      if (file_read (se->file, kpage, se->file_read_bytes) != 
+		  se->file_read_bytes)
+		{
+		  frame_free_page (kpage);
+		  syscall_thread_exit (f, -1);
+		  return;
+		}
+	      else 
+		{
+		  memset (kpage + se->file_read_bytes, 0,
+			  se->file_zero_bytes);
+		  
+		  spt_pagedir_update (t, upage, kpage, FRAME_FRAME,
+				      0, se->file, se->file_offset, 
+				      se->file_read_bytes,
+				      se->file_zero_bytes, 
+				      se->writable);
+		  frame_table_update (t->tid, upage, kpage);
+		  return;
+		}
+	    }
+	  else if (se->source == FRAME_SWAP)
+	    {
+	      swap_fetch (t->tid, upage, kpage);
+	      return;
+	    }
+
+	  /*	  else if (se->source == FRAME_ZERO)
+	    {
+	      memset (kpage, 0, PGSIZE);
+	      return;
+	    }
+	  */
+	}
+    }
+
   syscall_thread_exit (f, -1);
   return;
 

@@ -1,104 +1,103 @@
 #include "vm/frame.h"
+#include <inttypes.h>
+#include <stdbool.h>
+#include <list.h>
 #include "threads/palloc.h"
-#include "threads/malloc.h"
 #include "threads/thread.h"
-#include "userprog/pagedir.h"
-#include "threads/vaddr.h"
+#include "threads/synch.h"
+#include "threads/thread.h"
+#include "threads/malloc.h"
+#include "vm/swap.h"
 
-static bool install_page (void *upage, void *kpage, bool writable);
-static void add_frame_table (void *upage, void *kpage);
-
-struct frame_elem
-  { 
-    void *kpage;
-    void *upage;
-    tid_t tid;
-    struct list_elem elem;
-  };
-
-static struct list frame_table;
 
 void 
-valloc_init (size_t user_page_limit) 
-{
-  palloc_init (user_page_limit);
-}
-
-void 
-frame_table_init ()
+frame_init (void) 
 {
   list_init (&frame_table);
+  lock_init (&frame_lock);
 }
 
 void *
-valloc_get_page (enum palloc_flags flags, void *upage, bool writable)
+frame_get_page (enum palloc_flags flags)
 {
-  ASSERT (upage == pg_round_down(upage));
-  void *kpage = palloc_get_page (flags | PAL_ASSERT);
-  if (kpage == NULL) 
-    return kpage;
-  if (install_page(upage, kpage, writable))
-    return kpage;
-  else 
-    valloc_free_page (kpage);
-  return NULL;
+  void *kpage = palloc_get_page (flags);
+  if (kpage == NULL)
+    kpage = swap_evict ();
+  return kpage;
 }
 
-static bool 
-install_page (void *upage, void *kpage, bool writable)
+void 
+frame_free_page (uint32_t *kpage)
 {
-  ASSERT (upage == pg_round_down(upage));
-  struct thread *t = thread_current (); 
+  struct frame_element *fe = frame_table_find (kpage);
 
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  if ((pagedir_get_page (t->pagedir, upage) == NULL) &&
-       pagedir_set_page (t->pagedir, upage, kpage, writable))
-    {   
-       add_frame_table (upage, kpage);
-       return true;
-    }   
-  return false;
-}
+  lock_acquire (&frame_lock);
 
-static void 
-add_frame_table (void *upage, void *kpage)
-{
-  struct thread *t = thread_current();
-  struct frame_elem *fe = (struct frame_elem *) malloc(sizeof (struct frame_elem));
-  fe->kpage = kpage;
-  fe->upage = upage;
-  fe->tid = t->tid;
-  list_push_back (&frame_table, &fe->elem);
-}
-
-void *valloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
-{
-  return palloc_get_multiple (flags, page_cnt);
-}
-
-void valloc_free_page (void *page)
-{
-  valloc_free_multiple (page, 1);
-}
-
-void valloc_free_multiple (void *pages, size_t page_cnt)
-{
-  // TODO: hash or list?
-  struct list_elem *e = list_begin (&frame_table);
-  while (e != list_end (&frame_table))
+  if (fe != NULL)
     {
-      struct frame_elem *fe = list_entry (e, struct frame_elem, elem);
-      if (pages == fe->kpage)
-        {
-          list_remove (e);
-          free (fe);
-          break;
-        }
-      e = list_next (e);
+      list_remove (&fe->frame_elem);
+      free (fe);
+      palloc_free_page (kpage);
     }
-
-  palloc_free_multiple (pages, page_cnt);
+  lock_release (&frame_lock);
 }
 
+struct frame_element *
+frame_table_find (uint32_t *kpage)
+{
+  lock_acquire (&frame_lock);
+  struct list_elem *e;
+  struct frame_element *fe = NULL;
+  for (e = list_begin (&frame_table); e != list_end (&frame_table);
+       e = list_next (e))
+    {
+      struct frame_element *tmp = list_entry (e, struct frame_element,
+					      frame_elem);
+      if (tmp == NULL || tmp->kpage == kpage)
+	{ 
+	  fe = tmp;
+	  break;
+	}
+    }
+  lock_release (&frame_lock);
+  return fe;
+}
 
+struct frame_element *
+frame_element_create (uint32_t *kpage)
+{
+  struct frame_element *fe = (struct frame_element *) 
+    malloc (sizeof (struct frame_element));
+  if (fe == NULL)
+    return NULL;
+  fe->kpage = kpage;
+  fe->upage = NULL;
+  fe->tid = TID_ERROR;
+  lock_acquire (&frame_lock);
+  list_push_back (&frame_table, &fe->frame_elem);
+  lock_release (&frame_lock);
+  return fe;
+}
+
+void
+frame_element_set (struct frame_element *fe, uint32_t *upage, tid_t tid)
+{
+  lock_acquire (&frame_lock);
+  fe->upage = upage;
+  fe->tid = tid;
+  lock_release (&frame_lock);
+}
+
+bool
+frame_table_update (tid_t tid, uint32_t *upage, uint32_t *kpage)
+{
+  struct frame_element *fe = frame_table_find (kpage);
+  if (fe == NULL)
+    {
+      fe = frame_element_create (kpage);
+      if (fe == NULL)
+	return false;
+    }
+  frame_element_set (fe, upage, tid);
+  return true;
+}
