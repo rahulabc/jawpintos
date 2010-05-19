@@ -10,7 +10,6 @@
 #include "filesys/file.h"
 
 #include <stdio.h> /*REMOVEME:*/
-// #define DEBUG
 
 static struct hash spt_directory; /* supplemental page table */
 static struct lock spt_dir_lock;
@@ -155,13 +154,6 @@ spt_pagedir_update (struct thread *t, uint32_t *upage,
 		    off_t file_offset, int file_read_bytes,
 		    int file_zero_bytes, bool writable)
 {
-#ifdef DEBUG
-  printf ("tid = %d, upage = %p, kpage = %p, ofs = %d, "
-	  "rb = %d, zb = %d, source = %d\n", t->tid, upage, kpage,
-	  file_offset, file_read_bytes, file_zero_bytes, source);
-  printf ("pagedir_get_page = %p\n", pagedir_get_page (t->pagedir,
-  0x8049231));
-#endif
   struct spt_directory_element *sde = 
     spt_directory_find (t->tid);
   if (sde == NULL)
@@ -180,6 +172,8 @@ spt_pagedir_update (struct thread *t, uint32_t *upage,
     }
   spt_element_set_page (se, kpage, source, swap_index, file, file_offset,
 			file_read_bytes, file_zero_bytes, writable);
+  if (source == FRAME_FILE)
+    return true;
   return pagedir_set_page (t->pagedir, upage, kpage, writable);
 }
 

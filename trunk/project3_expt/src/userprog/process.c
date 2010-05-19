@@ -579,6 +579,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   off_t cur_ofs = ofs;
+  file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -588,6 +589,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       struct thread *t = thread_current ();
+
+      /*
       struct spt_directory_element *sde =
         spt_directory_find (t->tid);
       if (sde == NULL)
@@ -606,6 +609,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       spt_element_set_page (se, NULL, FRAME_FILE, 0, file, cur_ofs,
                             page_read_bytes, page_zero_bytes,
                             writable);
+      */
+      if (!spt_pagedir_update (t, (uint32_t *)upage, NULL, FRAME_FILE, 0, file,
+			       cur_ofs, page_read_bytes, 
+			       page_zero_bytes, writable))
+	thread_cleanup_and_exit (-1);
+
       cur_ofs += page_read_bytes + page_zero_bytes;
 
       /* Advance. */

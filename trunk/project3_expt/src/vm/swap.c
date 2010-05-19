@@ -113,6 +113,7 @@ swap_evict (void)
 	    }
 	  spt_element_set_page (se, NULL, FRAME_SWAP, swap_index,
 				NULL, 0, 0, 0, true);
+	      
 	  /* page table update */
 	  pagedir_clear_page (t->pagedir, fe->upage);
 	  /* frame table update */
