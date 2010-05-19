@@ -116,12 +116,51 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init (&exited_list);
-
+  
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+}
+
+struct mapid_elem 
+  { 
+    mapid_t id;          
+    struct list_elem elem;
+  };
+
+mapid_t
+thread_mmap (void *upage UNUSED)
+{
+  struct thread *t = thread_current();
+  mapid_t id = t->next_mmapping_id++;
+  struct mapid_elem *e = (struct mapid_elem*) malloc (sizeof 
+               (struct mapid_elem));
+  if (e == NULL)
+    return -1;
+  e->id = id;
+  list_push_back(&t->mmappings, &e->elem);
+  return id;
+}
+
+void 
+thread_unmmap (mapid_t id) 
+{
+  struct list_elem* e;
+  struct thread *t = thread_current();
+  for (e = list_begin (&t->mmappings); e != list_end (&t->mmappings);
+       e = list_next (e))
+    {
+      struct mapid_elem *me = list_entry (e, struct mapid_elem, elem);
+      if (me->id == id) 
+        {
+          list_remove (e);
+          free (me);
+          break;
+        } 
+    }
+  // MMAP TODO release pages from memory
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -502,6 +541,10 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->waited_children_list);
   list_init (&t->acquired_locks);
   sema_init (&t->waiting_on_child_exit_sema, 0);
+  
+  list_init (&t->mmappings);
+  t->next_mmapping_id = 1;
+
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
