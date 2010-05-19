@@ -9,6 +9,10 @@
 #include "vm/frame.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
+#include "vm/swap.h"
+#include <string.h>
+
+// #define DEBUG
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -152,7 +156,10 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-
+#ifdef DEBUG
+  printf ("-------------------->fault_addr = %p\n", fault_addr);
+  printf ("-------------------->eip = %p\n", f->eip);
+#endif
   /* user mode, kernel access */
   if (user)
     {
@@ -183,8 +190,7 @@ page_fault (struct intr_frame *f)
 	}
       else if (source == FRAME_SWAP)
 	{
-	  swap_fetch (t->tid, upage, kpage);     /* TODO: what if false? */
-	  
+	  swap_fetch (t->tid, upage, kpage);     /* TODO: what if false? */	  
 	  return;
 	}
     }
@@ -196,7 +202,12 @@ page_fault (struct intr_frame *f)
       struct spt_element *se = spt_find (sde, upage);
       if (se != NULL)
 	{
-	  uint32_t *kpage = frame_get_page (user ? PAL_USER : 0);
+	  uint32_t *kpage = frame_get_page (PAL_USER);
+	  if (kpage == NULL)
+	    {
+	      syscall_thread_exit (f, -1);
+	      return;
+	    }
 	  if (se->source == FRAME_FILE)
 	    {
 	      file_seek (se->file, se->file_offset);
@@ -211,7 +222,6 @@ page_fault (struct intr_frame *f)
 		{
 		  memset (kpage + se->file_read_bytes, 0,
 			  se->file_zero_bytes);
-		  
 		  spt_pagedir_update (t, upage, kpage, FRAME_FRAME,
 				      0, se->file, se->file_offset, 
 				      se->file_read_bytes,
@@ -225,6 +235,10 @@ page_fault (struct intr_frame *f)
 	    {
 	      swap_fetch (t->tid, upage, kpage);
 	      return;
+	    }
+	  else 
+	    {
+	      //	      ASSERT (0);
 	    }
 
 	  /*	  else if (se->source == FRAME_ZERO)

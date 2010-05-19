@@ -606,7 +606,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       spt_element_set_page (se, NULL, FRAME_FILE, 0, file, cur_ofs,
                             page_read_bytes, page_zero_bytes,
                             writable);
-
       cur_ofs += page_read_bytes + page_zero_bytes;
 
       /* Advance. */
