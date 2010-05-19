@@ -587,9 +587,26 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
-      spt_update_file (upage, file, cur_ofs, 
-                       page_read_bytes, page_zero_bytes, writable);
+      struct thread *t = thread_current ();
+      struct spt_directory_element *sde =
+        spt_directory_find (t->tid);
+      if (sde == NULL)
+        {
+          sde = spt_directory_element_create (t->tid);
+          if (sde == NULL)
+            thread_cleanup_and_exit (-1);
+        }
+      struct spt_element *se = spt_find (sde, (uint32_t *) upage);
+      if (se == NULL)
+        {
+          se = spt_element_create (sde, (uint32_t *) upage);
+          if (se == NULL)
+            thread_cleanup_and_exit (-1);
+        }
+      spt_element_set_page (se, NULL, FRAME_FILE, 0, file, cur_ofs,
+                            page_read_bytes, page_zero_bytes,
+                            writable);
+
       cur_ofs += page_read_bytes + page_zero_bytes;
 
       /* Advance. */
@@ -606,16 +623,20 @@ static bool
 setup_stack (void **esp) 
 {
   uint8_t *kpage;
+  bool success = false;
 
-  kpage = valloc_get_page (PAL_USER | PAL_ZERO, (uint8_t *) PHYS_BASE - PGSIZE, true );
-  if (kpage != NULL) 
+  kpage = frame_get_page (PAL_USER | PAL_ZERO);
+  if (kpage != NULL)
     {
-      *esp = PHYS_BASE;
-      return true;
+      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+      if (success)
+        *esp = PHYS_BASE;
+      else
+        palloc_free_page (kpage);
     }
-  return false;
+  return success;
 }
-#if 0 
+
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
    If WRITABLE is true, the user process may modify the page;
@@ -625,20 +646,20 @@ setup_stack (void **esp)
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-static bool
+bool
 install_page (void *upage, void *kpage, bool writable)
 {
   struct thread *t = thread_current ();
 
-  /* Verify that there's not already a page at that virtual
+  /* Verify that there's not already a page at that virtual                                                                                                                                                                                
      address, then map our page there. */
-  if ((pagedir_get_page (t->pagedir, upage) == NULL) &&
-       spt_pagedir_set_page (t->pagedir, upage, kpage, writable))
+  if (pagedir_get_page (t->pagedir, upage) == NULL)
     {
-       add_frame_table (upage, kpage);
-       return true;
-    } 
+      if (!spt_page_exist (t, upage))
+        return spt_pagedir_update (t, upage, kpage, FRAME_FRAME, 0, NULL,
+                                   0, 0, 0, writable) &&
+          frame_table_update (t->tid, upage, kpage);
+    }
   return false;
 }
 
-#endif
