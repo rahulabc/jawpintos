@@ -254,13 +254,21 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
   off_t cur_ofs = 0; 
   while (flen >= PGSIZE) 
     {
-      //      spt_update_file (addr+cur_ofs, fil, cur_ofs, PGSIZE, 0, false);
+      spt_pagedir_update (thread_current(), addr+cur_ofs, 
+                          NULL, FRAME_FILE, 
+                          0, fil,
+                          cur_ofs, PGSIZE, 
+                          0, false);
       cur_ofs += PGSIZE;
       flen -= PGSIZE;
     }
   if (flen > 0) 
     {
-      //      spt_update_file (addr+cur_ofs, fil, cur_ofs, flen, PGSIZE-flen, false);
+      spt_pagedir_update (thread_current(), addr+cur_ofs, 
+                          NULL, FRAME_FILE, 
+                          0, fil,
+                          cur_ofs, flen,
+                          PGSIZE-flen, false);
     }
   static int next_mapping_id = 0;
   lock_acquire (&next_mapping_id_lock);
