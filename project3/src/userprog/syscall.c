@@ -14,7 +14,6 @@
 #include "devices/input.h"
 #include "userprog/process.h"
 #include "vm/page.h"
-#include "lib/user/syscall.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -45,7 +44,6 @@ static struct lock next_fd_lock;
 static struct lock create_remove_filesys_lock;
 static struct lock read_filesys_lock;
 static struct lock write_filesys_lock;
-static struct lock next_mapping_id_lock;
 
 void
 syscall_init (void) 
@@ -54,7 +52,6 @@ syscall_init (void)
   lock_init (&create_remove_filesys_lock);
   lock_init (&write_filesys_lock);
   lock_init (&read_filesys_lock);
-  lock_init (&next_mapping_id_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -253,10 +250,7 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
     {
       spt_update_file (addr+cur_ofs, fil, cur_ofs, flen, PGSIZE-flen, false);
     }
-  static int next_mapping_id = 0;
-  lock_acquire (&next_mapping_id_lock);
-  f->eax = ++next_mapping_id;
-  lock_release (&next_mapping_id_lock);
+  f->eax = thread_mmap (addr);
   return;
 }
 
@@ -265,6 +259,7 @@ syscall_munmap (struct intr_frame *f UNUSED, void *cur_sp UNUSED)
 {
   mapid_t mapping;
   VALIDATE_AND_GET_ARG (cur_sp, mapping, f); 
+  thread_unmmap (mapping);
   return;
 }
 

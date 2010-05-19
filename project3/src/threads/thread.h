@@ -7,6 +7,8 @@
 #include "filesys/filesys.h"
 #include "threads/synch.h"
 
+typedef int mapid_t;
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -128,6 +130,10 @@ struct thread
 
     /* save the current thread's stack pointer */
     uint32_t *user_esp;
+
+    /* save mmaps */
+    uint32_t next_mmapping_id;
+    struct list mmappings;
   };
 
 
@@ -175,6 +181,8 @@ void add_thread_to_exited_list (tid_t pid, int status);
 
 int thread_wait_on_child_exit (tid_t child_tid);
 
+mapid_t thread_mmap (void *upage);
+void thread_unmmap (mapid_t id);
 
 struct child_elem
   {
