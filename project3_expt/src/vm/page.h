@@ -10,11 +10,11 @@
 
 enum frame_source 
   {
-    FRAME_INVALID,
     FRAME_ZERO = 0,
     FRAME_FRAME,
     FRAME_SWAP,
-    FRAME_FILE
+    FRAME_FILE,
+    FRAME_INVALID
   };
 
 struct spt_directory_element

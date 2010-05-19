@@ -16,6 +16,8 @@
 #include "vm/page.h"
 #include "lib/user/syscall.h"
 
+// #define DEBUG
+
 static void syscall_handler (struct intr_frame *);
 
 /* syscall functions */
@@ -94,7 +96,7 @@ thread_cleanup_and_exit (int status)
     }
 
   /* Supp Page Table, Swap Table, and Frame Table Free */
-  spt_free (t->tid);
+  //  spt_free (t->tid);
 
   add_thread_to_exited_list (t->tid, status);
   
@@ -117,6 +119,7 @@ thread_cleanup_and_exit (int status)
   if (parent)  {
     sema_up (&parent->waiting_on_child_exit_sema);
   }
+
   thread_exit ();
 }
 
@@ -155,6 +158,9 @@ syscall_handler (struct intr_frame *f)
   VALIDATE_AND_GET_ARG (f->esp, syscall_num, f);
   void *cur_sp = f->esp + sizeof (void *);
 
+#ifdef DEBUG
+  printf ("in syscall_handler: %d \n", syscall_num);
+#endif
   /* store user program stack pointer to the thread's 
      user_esp before changing to kernel mode */
   struct thread *t = thread_current ();

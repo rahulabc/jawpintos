@@ -9,6 +9,9 @@
 #include "vm/swap.h"
 #include "filesys/file.h"
 
+#include <stdio.h> /*REMOVEME:*/
+// #define DEBUG
+
 static struct hash spt_directory; /* supplemental page table */
 static struct lock spt_dir_lock;
 
@@ -60,6 +63,7 @@ spt_directory_find (tid_t tid)
 {
   struct spt_directory_element tmp;
   tmp.tid = tid;
+
   lock_acquire (&spt_dir_lock);
   struct hash_elem *h = hash_find (&spt_directory, &tmp.spt_dir_elem);
   if (h == NULL)
@@ -136,9 +140,8 @@ spt_element_create (struct spt_directory_element *sde, uint32_t *upage)
     return NULL; /* TODO: NEED TO HANDLE THIS MORE CAREFULLY */
 
   se->upage = upage;  
-  spt_element_set_page (se, NULL, FRAME_INVALID, 0 /* TODO: or -1? */, NULL,
+  spt_element_set_page (se, NULL, FRAME_INVALID, 0, NULL,
 			0, 0, 0, false);
-  
   lock_acquire (&sde->spt_lock);
   hash_insert (&sde->spt, &se->spt_elem);
   lock_release (&sde->spt_lock);
@@ -152,6 +155,13 @@ spt_pagedir_update (struct thread *t, uint32_t *upage,
 		    off_t file_offset, int file_read_bytes,
 		    int file_zero_bytes, bool writable)
 {
+#ifdef DEBUG
+  printf ("tid = %d, upage = %p, kpage = %p, ofs = %d, "
+	  "rb = %d, zb = %d, source = %d\n", t->tid, upage, kpage,
+	  file_offset, file_read_bytes, file_zero_bytes, source);
+  printf ("pagedir_get_page = %p\n", pagedir_get_page (t->pagedir,
+  0x8049231));
+#endif
   struct spt_directory_element *sde = 
     spt_directory_find (t->tid);
   if (sde == NULL)
@@ -205,7 +215,6 @@ spt_free (tid_t tid)
 {
   struct spt_directory_element *sde = 
     spt_directory_find (tid);
-
   lock_acquire (&spt_dir_lock);
 
   if (sde != NULL)
@@ -220,15 +229,20 @@ spt_free (tid_t tid)
 	  struct spt_element *se = hash_entry (hash_cur (&i),
 					       struct spt_element,
 					       spt_elem);
-	  if (se->source == FRAME_FRAME || se->source == FRAME_ZERO)
-	    frame_free_page (se->kpage);
+	  if (se->source == FRAME_FRAME /*|| se->source == FRAME_ZERO */) 
+	    {
+	      pagedir_clear_page (get_thread (tid)->pagedir, se->upage);
+	      frame_free_page (se->kpage);
+	    }
 	  else if (se->source == FRAME_SWAP)
 	    swap_free (se->swap_index);
-	  pagedir_clear_page (get_thread (tid)->pagedir, se->upage);
+	  
+	  hash_delete (spt, &se->spt_elem);
 	  free (se);
+	  hash_first (&i, spt);
 	}
-      printf ("out of while\n");
       lock_release (&sde->spt_lock);
+      hash_delete (&spt_directory, &sde->spt_dir_elem);
       free (sde);
     }
   lock_release (&spt_dir_lock);
