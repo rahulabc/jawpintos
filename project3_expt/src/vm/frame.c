@@ -8,7 +8,8 @@
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "vm/swap.h"
-
+#include "threads/vaddr.h"
+#include <string.h>
 
 void 
 frame_init (void) 
@@ -23,6 +24,7 @@ frame_get_page (enum palloc_flags flags)
   void *kpage = palloc_get_page (flags);
   if (kpage == NULL)
     kpage = swap_evict ();
+  memset (kpage, 0, PGSIZE);   // REVISIT WHEN TO FLUSH
   return kpage;
 }
 
