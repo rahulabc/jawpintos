@@ -250,6 +250,21 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
     }
   off_t cur_ofs = 0;
   fil = file_reopen (fil);
+
+  /* make a first pass to check if addresses are valid before doing actual update. */
+  off_t pass_cur_ofs = 0;
+  off_t pass_flen = flen;
+  while (pass_flen > 0) 
+    {
+      if (spt_page_exist (thread_current(), addr+pass_cur_ofs))
+        {
+          f->eax = -1;
+          return;
+        }
+      pass_cur_ofs += PGSIZE;
+      pass_flen -= PGSIZE;
+    }
+  /* do actual update... */
   while (flen >= PGSIZE) 
     {
       spt_pagedir_update (thread_current(), addr+cur_ofs, 
