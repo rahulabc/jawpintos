@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include "threads/thread.h"
 #include "threads/malloc.h"
+#include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
 #include "vm/swap.h"
@@ -202,6 +203,30 @@ spt_get_source (tid_t tid, uint32_t *upage)
   if (se == NULL)
     return FRAME_INVALID;
   return se->source;
+}
+
+void
+spt_free_mmap (tid_t tid, void *upage)
+{
+  struct spt_directory_element *sde = 
+    spt_directory_find (tid);
+  if (sde == NULL)
+    return;
+  struct spt_element *se = spt_find (sde, upage);
+  if (se == NULL)
+    return;
+  struct thread *t = get_thread (tid);
+  if (se->writable)
+    {   
+      if (pagedir_is_dirty (t->pagedir, upage) && (se->kpage!=NULL)) 
+        {   
+          file_write_at (se->file, se->kpage, PGSIZE, se->file_offset); 
+        }   
+    }   
+
+  pagedir_clear_page (t->pagedir, se->upage);
+  frame_free_page (se->kpage);
+  return;
 }
 
 void

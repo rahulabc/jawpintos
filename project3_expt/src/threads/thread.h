@@ -181,7 +181,7 @@ void add_thread_to_exited_list (tid_t pid, int status);
 
 int thread_wait_on_child_exit (tid_t child_tid);
 
-mapid_t thread_mmap (struct file *fil);
+mapid_t thread_mmap (struct file *fil, void *start_upage);
 void thread_unmmap (mapid_t id);
 
 
