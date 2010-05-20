@@ -210,6 +210,10 @@ page_fault (struct intr_frame *f)
 	    }
 	  if (se->source == FRAME_FILE)
 	    {
+        // REVISIT do these only if is NOT writable.
+        // if writable read from swap partition
+        
+        se->file = file_reopen (se->file); 
 	      file_seek (se->file, se->file_offset);
 	      if (file_read (se->file, kpage, se->file_read_bytes) != 
 		  se->file_read_bytes)
