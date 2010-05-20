@@ -130,9 +130,9 @@ thread_init (void)
 
 struct mapid_elem 
   {   
-    mapid_t id;    
-    struct file *fp;
-    void *start_upage;
+    mapid_t id;        /* mapping id for mmap */
+    void *start_upage; /* starting mapped upage pointer */
+    struct file *fp;   /* file size determines how many pages exist */
     struct list_elem elem;
   };  
 
