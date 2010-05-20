@@ -208,15 +208,14 @@ page_fault (struct intr_frame *f)
 	      syscall_thread_exit (f, -1);
 	      return;
 	    }
-	  if (se->source == FRAME_FILE)
+	  if ( se->source == FRAME_FILE )
 	    {
         // REVISIT do these only if is NOT writable.
         // if writable read from swap partition
         
-        se->file = file_reopen (se->file); 
 	      file_seek (se->file, se->file_offset);
-	      if (file_read (se->file, kpage, se->file_read_bytes) != 
-		  se->file_read_bytes)
+	      int num_bytes_read = file_read (se->file, kpage, se->file_read_bytes) ;
+              if (num_bytes_read != se->file_read_bytes)
 		{
 		  frame_free_page (kpage);
 		  syscall_thread_exit (f, -1);

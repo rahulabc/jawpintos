@@ -12,6 +12,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "filesys/file.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -127,11 +128,12 @@ thread_init (void)
 struct mapid_elem 
   {   
     mapid_t id;    
+    struct file *fp;
     struct list_elem elem;
   };  
 
 mapid_t
-thread_mmap ()
+thread_mmap (struct file *fp)
 {
   struct thread *t = thread_current();
   mapid_t id = t->next_mmapping_id++;
@@ -140,6 +142,7 @@ thread_mmap ()
   if (e == NULL)
     return -1; 
   e->id = id; 
+  e->fp = fp;
   list_push_back(&t->mmappings, &e->elem);
   return id; 
 }
@@ -154,7 +157,8 @@ thread_unmmap (mapid_t id)
     {   
       struct mapid_elem *me = list_entry (e, struct mapid_elem, elem);
       if (me->id == id) 
-        {   
+        {  
+          file_close (me->fp); 
           list_remove (e);
           free (me);
           break;
