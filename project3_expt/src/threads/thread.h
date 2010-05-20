@@ -132,8 +132,8 @@ struct thread
     uint32_t *user_esp;
     
     /* save mmaps */
-    uint32_t next_mmapping_id;
-    struct list mmappings;
+    uint32_t next_mmapping_id; /* id for the next mapping requested */
+    struct list mmappings;     /* list of mmapped files, their upages, ids */
   };
 
 
