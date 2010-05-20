@@ -248,7 +248,8 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
        f->eax = -1;
        return;
     }
-  off_t cur_ofs = 0; 
+  off_t cur_ofs = 0;
+  fil = file_reopen (fil);
   while (flen >= PGSIZE) 
     {
       spt_pagedir_update (thread_current(), addr+cur_ofs, 
@@ -267,7 +268,7 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
                           cur_ofs, flen,
                           PGSIZE-flen, true);
     }
-  f->eax = thread_mmap ();
+  f->eax = thread_mmap (fil);
   return;
 }
 
@@ -613,7 +614,7 @@ syscall_close (struct intr_frame *f, void *cur_sp)
   // version of pintos, so don't need a lock 
   int fd;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
-
+  
   struct thread *t = thread_current ();
   struct list_elem *e;
   for (e = list_begin (&t->file_list); e != list_end (&t->file_list);
