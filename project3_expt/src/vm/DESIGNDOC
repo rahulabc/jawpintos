@@ -111,15 +111,74 @@ Anand Madhavan <manand@stanford.edu>
 >> C1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+********************************************************************
+We maintain a per-thread mapping information. In thread.h, 
+struct thread now contains these additional members:
+
+uint32_t next_mmapping_id; /* id for the next mapping requested */
+struct list mmappings; /* list of mmapped files, their upages, ids */
+
+Each element in the list is a:
+struct mapid_elem 
+  {   
+    mapid_t id;        /* mapping id for mmap */
+    void *start_upage; /* starting mapped upage pointer */
+    struct file *fp;   /* file size determines how many pages exist */
+    struct list_elem elem;
+  }; 
+
+next_mmapping_id: contains the next id to be assigned when mmap
+call comes in. 
+
+mmappings: A list of mmapped files and their map-ids are kept
+track of and used to unload files from memory to disk when these
+are unmapped.
+
+mapid_elem: list_elem for the mmappings
+id: map_id that is the assigned mapping id for the mmap call.
+start_upage: starting user address that this file maps on to.
+fp: file pointer for the mmap.
 
 ---- ALGORITHMS ----
+(JOON, WOO:
+REVISIT_SWAP_EVICT note: currently tests pass without change to the
+eviction strategy, but we should work on swap_evict writing this out 
+to file as well, not sure how to detect that a frame is mmapped
+since this now has source FRAME_FILE, you guys will have better
+ideas for this, looks like we need a separate member other than source
+that needs to track this. 
+Basic idea differentiation that needs to be made is:
+if the page is not writable evict. simple. 
+if the page is writable
+  if page maps to executable 
+    write to swap
+  else if page to mmap
+    write to file
+END NOTE)
 
 >> C2: Describe how memory mapped files integrate into your virtual
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
+Memory mapped files are files that are marked with FRAME_FILE sources
+and during page_fault are read into memory just like text segments of 
+executables. The only difference is that during mapping and unmapping
+we also additionally write out the data to the files if these regions
+have been edited and are writable.
+
+(REVISIT_SWAP_EVICT, should work on swap_evict writing this out to file
+as well, not sure how to handle this with existing code).
 
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
+During the mmap call, syscall_mmap is called which in turn  
+goes sequentially through each PGSIZE offset (upto the length of the
+file, taking into account the page boundaries) and checks using
+spt_page_exist to make sure that the memory location for the
+page does not already have an entry in the supplementary page table.
+If it does we return -1. If it doesn't we check every other page
+for the file. If all of them don't overlap, we proceed to update the 
+supplementary page table with the information as to the source of the
+data and other details.
 
 ---- RATIONALE ----
 
@@ -129,6 +188,12 @@ Anand Madhavan <manand@stanford.edu>
 >> that much of their implementation can be shared.  Explain why your
 >> implementation either does or does not share much of the code for
 >> the two situations.
+Our implementation does indeed share much of the code. In the case
+of mmapped files we write files out to the disk during the unmapping
+call. 
+(REVISIT_SWAP_EVICT, should work on swap_evict writing this out to file
+as well, not sure how to handle this with existing code).
+ 
 
                SURVEY QUESTIONS
                ================
