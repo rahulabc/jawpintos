@@ -283,7 +283,7 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
                           cur_ofs, flen,
                           PGSIZE-flen, true);
     }
-  f->eax = thread_mmap (fil);
+  f->eax = thread_mmap (fil, addr);
   return;
 }
 

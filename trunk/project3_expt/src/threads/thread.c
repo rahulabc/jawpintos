@@ -16,6 +16,9 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
+#ifdef VM
+#include "vm/page.h"
+#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -129,11 +132,12 @@ struct mapid_elem
   {   
     mapid_t id;    
     struct file *fp;
+    void *start_upage;
     struct list_elem elem;
   };  
 
 mapid_t
-thread_mmap (struct file *fp)
+thread_mmap (struct file *fp, void *start_upage)
 {
   struct thread *t = thread_current();
   mapid_t id = t->next_mmapping_id++;
@@ -143,8 +147,24 @@ thread_mmap (struct file *fp)
     return -1; 
   e->id = id; 
   e->fp = fp;
+  e->start_upage = start_upage;
   list_push_back(&t->mmappings, &e->elem);
   return id; 
+}
+
+static
+void
+thread_unmmap_free_pages_of_file (struct thread *t, struct mapid_elem *me)
+{
+  off_t cur_ofs = 0;
+  off_t flen = file_length (me->fp);
+  while (flen > 0) 
+    {
+      spt_free_mmap (t->tid, me->start_upage+cur_ofs);
+      cur_ofs += PGSIZE;
+      flen -= PGSIZE;
+    } 
+  file_close (me->fp); 
 }
 
 void 
@@ -157,14 +177,13 @@ thread_unmmap (mapid_t id)
     {   
       struct mapid_elem *me = list_entry (e, struct mapid_elem, elem);
       if (me->id == id) 
-        {  
-          file_close (me->fp); 
+        {
+          thread_unmmap_free_pages_of_file (t, me);
           list_remove (e);
           free (me);
           break;
         }   
     }   
-  // MMAP TODO release pages from memory
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -358,7 +377,15 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
-#ifdef USERPROG
+  struct thread *t = thread_current();
+  struct list_elem* e = list_begin (&t->mmappings); 
+   while (e != list_end (&t->mmappings))
+    {   
+      struct mapid_elem *me = list_entry (e, struct mapid_elem, elem);
+      thread_unmmap_free_pages_of_file (t, me);
+      e = list_remove (e); 
+    }
+ #ifdef USERPROG
   process_exit ();
 #endif
 

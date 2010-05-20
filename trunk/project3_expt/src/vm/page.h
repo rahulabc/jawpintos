@@ -60,5 +60,6 @@ void spt_free (tid_t tid);
 struct spt_directory_element *spt_directory_element_create (tid_t tid);
 struct spt_element *spt_element_create (struct spt_directory_element *sde,
 					uint32_t *upage);
+void spt_free_mmap (tid_t tid, void *upage);
 
 #endif /* vm/page.h */
