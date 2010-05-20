@@ -14,7 +14,6 @@
 #include "devices/input.h"
 #include "userprog/process.h"
 #include "vm/page.h"
-#include "lib/user/syscall.h"
 
 // #define DEBUG
 
@@ -35,7 +34,7 @@ static void syscall_seek (struct intr_frame *f, void *cur_sp);
 static void syscall_tell (struct intr_frame *f, void *cur_sp);
 static void syscall_close (struct intr_frame *f, void *cur_sp);
 static void syscall_mmap (struct intr_frame *f, void *cur_sp);
-static void syscall_munmap (struct intr_frame *f, void *cur_sp);
+static void syscall_unmmap (struct intr_frame *f, void *cur_sp);
 
 /* pointer validity */
 static bool syscall_invalid_ptr (const void *ptr);
@@ -47,7 +46,6 @@ static struct lock next_fd_lock;
 static struct lock create_remove_filesys_lock;
 static struct lock read_filesys_lock;
 static struct lock write_filesys_lock;
-static struct lock next_mapping_id_lock;
 
 void
 syscall_init (void) 
@@ -56,7 +54,6 @@ syscall_init (void)
   lock_init (&create_remove_filesys_lock);
   lock_init (&write_filesys_lock);
   lock_init (&read_filesys_lock);
-  lock_init (&next_mapping_id_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -211,7 +208,7 @@ syscall_handler (struct intr_frame *f)
         syscall_mmap (f, cur_sp);
         break;
       case SYS_MUNMAP:
-        syscall_munmap (f, cur_sp);
+        syscall_unmmap (f, cur_sp);
         break;
       default :
         printf ("Invalid system call! #%d\n", syscall_num);
@@ -258,7 +255,7 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
                           NULL, FRAME_FILE, 
                           0, fil,
                           cur_ofs, PGSIZE, 
-                          0, false);
+                          0, true);
       cur_ofs += PGSIZE;
       flen -= PGSIZE;
     }
@@ -268,20 +265,18 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
                           NULL, FRAME_FILE, 
                           0, fil,
                           cur_ofs, flen,
-                          PGSIZE-flen, false);
+                          PGSIZE-flen, true);
     }
-  static int next_mapping_id = 0;
-  lock_acquire (&next_mapping_id_lock);
-  f->eax = ++next_mapping_id;
-  lock_release (&next_mapping_id_lock);
+  f->eax = thread_mmap ();
   return;
 }
 
 static void 
-syscall_munmap (struct intr_frame *f UNUSED, void *cur_sp UNUSED)
+syscall_unmmap (struct intr_frame *f UNUSED, void *cur_sp UNUSED)
 {
   mapid_t mapping;
   VALIDATE_AND_GET_ARG (cur_sp, mapping, f); 
+  thread_unmmap(mapping);
   return;
 }
 
