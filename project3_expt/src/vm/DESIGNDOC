@@ -35,6 +35,19 @@ Anand Madhavan <manand@stanford.edu>
 >> A2: In a few paragraphs, describe your code for locating the frame,
 >> if any, that contains the data of a given page.
 
+Our main data structure for the page table is the hash of hash table
+which is the combined supplementary table of all the page directories. 
+The first key is tid_t tid and the second key is the upage from
+t->pagedir. The element that is contained in the hash of hash is 
+spt_element and this struct contains void* kpage which allows us to 
+locate the physical frame. 
+
+The physical frames are represented by the frame_table which is a list
+of frame_elements which is a struct with void *upage, void *kpage (key),
+and tid_t tid. We use the void *kpage contained in the spt_element 
+to find the corresponding kpage in the frame_table. This kpage is of 
+course given when we call pagedir_get_page. 
+
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
@@ -44,10 +57,20 @@ Anand Madhavan <manand@stanford.edu>
 >> A4: When two user processes both need a new frame at the same time,
 >> how are races avoided?
 
+We have created a lock called frame_lock that has to be acquired 
+when the process enters the function frame_get_page, inside of which
+palloc_get_page is called. This will prevent two processes calling 
+palloc_get_page at the same time and races will be avoided because 
+when one process is done with palloc_get_page, the newly assigned 
+frame's bit in the palloc's bitmap would be true so the second process
+would never get the same physical frame. Races are avoided. 
+
 ---- RATIONALE ----
 
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
+
+
 
                PAGING TO AND FROM DISK
                =======================
@@ -63,13 +86,42 @@ Anand Madhavan <manand@stanford.edu>
 >> B2: When a frame is required but none is free, some frame must be
 >> evicted.  Describe your code for choosing a frame to evict.
 
+We chose to use to LRU algorithm. We iterate through the list of 
+physical frames and then check whether the access bit of the PTE
+is true or not by doing pagaedir_is_accessed. If it is set to true
+then we set it to false and move on with the iteration. If it is 
+set to false we choose this physical frame to evict. 
+
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
 
+When frame that process Q owned previously becomes free we set the 
+frame's structure values to the initial values by leaving alone the
+void *kpage, setting void *upage to NULL, and setting tid_t tid to 
+TID_ERROR. Then when process P comes in to obtain this physical frame
+we set the values of the corresponding element in the frame table 
+to the appropriate values of upage and tid of process P. 
+
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
+
+We first check whether the invalid virtual address (vaddr, I will call)
+is less than the thread_current's stack pointer - 32 and greater than 
+the thread_current's stack pointer, if the stack frame f is that of 
+a user thread. We are also noted that the intr_frame inside page_fault 
+could be that of a kernel thread and in this case we save the user thread's 
+stack pointer in the thread's structure (void *user_esp) and use this 
+to find out whether the vaddr is between user_esp - 32 and user_esp. 
+This takes care of the stack growth case. 
+
+For the stack access case, we check whether the vaddr is between 
+the f->esp - 32 (if intr_frame is that of a user thread) or 
+current_thread ()->user_esp - 32 (if intr_frame is that of a kernel 
+thread) and the PHYS_BASE. This helps us do lazy loading of 
+virtual page <-> physical page link, only when it is actually being 
+processed. 
 
 ---- SYNCHRONIZATION ----
 
@@ -78,21 +130,62 @@ Anand Madhavan <manand@stanford.edu>
 >> textbook for an explanation of the necessary conditions for
 >> deadlock.)
 
+Synchronization was centered on struct spt_element which represents
+a virtual page. We reasoned that every access to all the tables starts
+with a virtual page and we included a lock for every spt_element so 
+that an access to the spt_element will require acquirement of the lock
+that is contained in this spt_element. The two major transactions 
+we thought of were when a page wants to swap-in a page from file or 
+swap and when a page wants to grow stack. So in these cases, which 
+are handled in page_fault, the lock in the spt_element would be 
+released at the end of the transaction so that other processes can 
+access this spt_element. Deadlock was prevented because there is only 
+one lock per spt_element and one process would only want to process
+one spt_element at a time. 
+
 >> B6: A page fault in process P can cause another process Q's frame
 >> to be evicted.  How do you ensure that Q cannot access or modify
 >> the page during the eviction process?  How do you avoid a race
 >> between P evicting Q's frame and Q faulting the page back in?
+
+Let's name the page in discussion as kpage. The race condition is avoided
+because if process P wants to evict kpage, it would first have to gain
+the lock contained by the virtual page of the kpage and Q has to acquire
+the same lock in order to process/access/modify the contents of the kpage.
+Therefore Q cannot page_fault and bring the page back in before 
+P is done evicting it. Or, P cannot evict kpage before Q is done 
+accessing/modifying it. There is no race condition described in the 
+question. 
 
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
 >> cannot interfere by e.g. attempting to evict the frame while it is
 >> still being read in?
 
+If process P causes a page (name it D) to be read from the file system 
+or swap, it means that process P has acquired the lock in the virtual 
+page of D. A second process Q cannot interfere to evict the frame for 
+page D because it has to acquire the lock for page D before evicting 
+the frame. The two transactions can only happen serializably but 
+while page D can be swapped out first and read in the next, it cannot be 
+read in first and then swapped out because "read in" will set the 
+access bit of the PTE to true. 
+
 >> B8: Explain how you handle access to paged-out pages that occur
 >> during system calls.  Do you use page faults to bring in pages (as
 >> in user programs), or do you have a mechanism for "locking" frames
 >> into physical memory, or do you use some other design?  How do you
 >> gracefully handle attempted accesses to invalid virtual addresses?
+
+We use page faults to bring in pages that are either swapped out or
+located in the file system. We gracefully handle attempted accesses
+to invalid virtual addresses by setting a range with f->esp, thread->
+user_esp, PHYS_BASE, and 32 (for PUSHA) and if the fault_addr falls 
+within these ranges, we allocate a frame filled with contents of either 
+zeros (if stack growth or access), swap slot (if swapped out), and 
+file (if file system). In all other cases, we terminate the process
+and free all resources, identifying it as a truly invalid address
+as we have done in project 2.
 
 ---- RATIONALE ----
 
@@ -102,6 +195,17 @@ Anand Madhavan <manand@stanford.edu>
 >> possibility for deadlock but allows for high parallelism.  Explain
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
+
+Our design falls more closly toward the "many locks" side because 
+first we have many locks (one for each spt_element, which is a 
+data structure representation of a virtual page) and second, we 
+allow high parallelism through allowing different processes to 
+work on different virtual pages but NOT the same pages. Logically, 
+it does not make sense for two processes to be accessing the same
+virtual page at the same time because then we would basically need 
+a lock for each bit in the page. We chose this design because while 
+it allows synchronization, it also allows high parallelism, and 
+it is also simple to program.  
 
              MEMORY MAPPED FILES
              ===================
