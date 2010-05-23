@@ -17,7 +17,6 @@ struct frame_element
     struct list_elem frame_elem;
   };
 
-
 void frame_init (void);
 void *frame_get_page (enum palloc_flags flags);
 bool frame_table_update (tid_t tid, uint32_t *upage, uint32_t *kpage);

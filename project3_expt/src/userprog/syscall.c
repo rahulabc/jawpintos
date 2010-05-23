@@ -15,7 +15,6 @@
 #include "userprog/process.h"
 #include "vm/page.h"
 
-// #define DEBUG
 
 static void syscall_handler (struct intr_frame *);
 
@@ -60,14 +59,11 @@ syscall_init (void)
 void
 thread_cleanup_and_exit (int status) 
 {
-  /*  if (status == -1)
-      debug_backtrace ();*/
   printf ("%s: exit(%d)\n", thread_name (), status);
   /* close all open file descriptors */
   struct thread *t = thread_current ();
  
   struct list_elem *e;
-
   /* close all the files opened and
      free spaces allocated for the file list */
   while (!list_empty (&t->file_list))
@@ -166,9 +162,6 @@ syscall_handler (struct intr_frame *f)
   VALIDATE_AND_GET_ARG (f->esp, syscall_num, f);
   void *cur_sp = f->esp + sizeof (void *);
 
-#ifdef DEBUG
-  printf ("in syscall_handler: %d \n", syscall_num);
-#endif
   /* store user program stack pointer to the thread's 
      user_esp before changing to kernel mode */
   struct thread *t = thread_current ();

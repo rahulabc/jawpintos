@@ -207,11 +207,11 @@ spt_find_or_create (tid_t tid, void *upage)
   return se;
 }
 
-/* Checks if UPAGE exists in Supp Page Table of process(thread) T */
+/* Checks if UPAGE exists in Supp Page Table of process (thread) T */
 bool
 spt_page_exist (struct thread *t, uint32_t *upage)
 {
-  struct spt_directory_element *sde = 
+  struct spt_directory_element *sde =
     spt_directory_find (t->tid);
   if (sde == NULL)
     return false;

@@ -170,9 +170,8 @@ page_fault (struct intr_frame *f)
   struct thread *t = thread_current ();
   uint32_t *upage = pg_round_down (fault_addr);
 
-  /* TMP */
-  struct lock *store = t->spt_elem_lock;
-  if (store != NULL)
+  struct lock *tmp = t->spt_elem_lock;
+  if (tmp != NULL)
     lock_release (t->spt_elem_lock);
   t->spt_elem_lock = NULL;
 
@@ -187,36 +186,22 @@ page_fault (struct intr_frame *f)
 
       if (source == FRAME_INVALID)
 	{      
-	  install_page (upage, kpage, true); /* TODO: what if false? */
+	  install_page (upage, kpage, true); 
 	  ASSERT (t->spt_elem_lock != NULL);
 	  lock_release (t->spt_elem_lock);
-	  t->spt_elem_lock = store;
-	  /*
-	  if (store != NULL)
-	    lock_acquire (t->spt_elem_lock);
-	  */
+	  t->spt_elem_lock = tmp;	
 	  return;
 	}
       else if (source == FRAME_SWAP)
 	{
 	  swap_fetch (t->tid, upage, kpage); 
-
 	  ASSERT (t->spt_elem_lock != NULL);
-
 	  lock_release (t->spt_elem_lock);
-	  t->spt_elem_lock = store;
-	  /*
-	  if (store != NULL)
-	    lock_acquire (t->spt_elem_lock);
-	  */
+	  t->spt_elem_lock = tmp;
 	  return;
 	}
       lock_release (t->spt_elem_lock);
-      t->spt_elem_lock = store;
-      /*
-      if (store != NULL)
-	lock_acquire (t->spt_elem_lock);
-      */
+      t->spt_elem_lock = tmp;
       return;
     }
 
@@ -231,12 +216,7 @@ page_fault (struct intr_frame *f)
 	  if (kpage == NULL)
 	    {
 	      lock_release (t->spt_elem_lock);
-	      t->spt_elem_lock = store;
-	      /*
-	      if (store != NULL)
-		lock_acquire (t->spt_elem_lock);
-	      */
-
+	      t->spt_elem_lock = tmp;
 	      syscall_thread_exit (f, -1);
 	      return;
 	    }
@@ -248,11 +228,7 @@ page_fault (struct intr_frame *f)
 		{
 		  frame_free_page (kpage);
 		  lock_release (t->spt_elem_lock);
-		  t->spt_elem_lock = store;
-		  /*
-		  if (store != NULL)
-		    lock_acquire (t->spt_elem_lock);
-		  */
+		  t->spt_elem_lock = tmp;
 		  syscall_thread_exit (f, -1);
 		  return;
 		}
@@ -267,12 +243,7 @@ page_fault (struct intr_frame *f)
 				      se->writable);
 		  frame_table_update (t->tid, upage, kpage);
 		  lock_release (t->spt_elem_lock);
-		  t->spt_elem_lock = store;
-		  /*
-		  if (store != NULL)
-		    lock_acquire (t->spt_elem_lock);		 
-		  */
-
+		  t->spt_elem_lock = tmp;
 		  return;
 		}
 	    }
@@ -280,34 +251,15 @@ page_fault (struct intr_frame *f)
 	    {
 	      swap_fetch (t->tid, upage, kpage);
 	      lock_release (t->spt_elem_lock);
-	      t->spt_elem_lock = store;
-	      /*
-	      if (store != NULL)
-		lock_acquire (t->spt_elem_lock);
-	      */
+	      t->spt_elem_lock = tmp;
 	      return;
 	    }
 	  lock_release (t->spt_elem_lock);
-	  t->spt_elem_lock = store;
-	  /*
-	  if (store != NULL)
-	    lock_acquire (t->spt_elem_lock);
-	  */
+	  t->spt_elem_lock = tmp;
 	}
     }
+
   syscall_thread_exit (f, -1);
   return;
-
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
-  /*
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-          fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading",
-          user ? "user" : "kernel");
-  kill (f);
-  */
 }
 

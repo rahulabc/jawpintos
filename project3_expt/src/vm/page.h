@@ -24,7 +24,7 @@ enum frame_source
    SPT of a process specified by TID */
 struct spt_directory_element
   {
-    tid_t tid;                        /* key */
+    tid_t tid;                        /* tid is the key */
     struct hash spt;                  /* Supplemental Page Table */    
     struct hash_elem spt_dir_elem;
   };
@@ -34,9 +34,9 @@ struct spt_directory_element
    the UPAGE referred in Supp Page Table */
 struct spt_element
   {
-    uint32_t *upage;  /* key */
-    uint32_t *kpage;
-    enum frame_source source;
+    uint32_t *upage;                  /* upage is the key */
+    uint32_t *kpage;                  
+    enum frame_source source;         /* Location of the contents */
     uint32_t swap_index;
     struct file *file;
     off_t file_offset;
@@ -44,10 +44,10 @@ struct spt_element
     int file_zero_bytes;
     bool writable;
     struct hash_elem spt_elem;
-    struct lock spt_elem_lock;
+    struct lock spt_elem_lock;         /* Lock for managing read/write
+					  to a upage or kpage related to
+					  this element */
   };
-
-
 
 void spt_directory_init (void);
 bool spt_pagedir_update (struct thread *t, uint32_t *upage, 
