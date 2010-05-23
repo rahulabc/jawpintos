@@ -9,6 +9,16 @@
 
 typedef int mapid_t;
 
+struct mapid_elem 
+  {   
+    mapid_t id;        /* mapping id for mmap */
+    void *start_upage; /* starting mapped upage pointer */
+    struct file *fp;   /* file size determines how many pages exist */
+    struct list_elem elem;
+  };  
+
+void thread_unmmap_free_pages_of_file (struct thread *t, struct mapid_elem *me);
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -134,6 +144,9 @@ struct thread
     /* save mmaps */
     uint32_t next_mmapping_id; /* id for the next mapping requested */
     struct list mmappings;     /* list of mmapped files, their upages, ids */
+    
+    /* Supp page table - frame - swap transfer lock */
+    struct lock *spt_elem_lock;
   };
 
 

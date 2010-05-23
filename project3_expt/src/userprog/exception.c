@@ -12,7 +12,6 @@
 #include "vm/swap.h"
 #include <string.h>
 
-// #define DEBUG
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -156,10 +155,7 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-#ifdef DEBUG
-  printf ("-------------------->fault_addr = %p\n", fault_addr);
-  printf ("-------------------->eip = %p\n", f->eip);
-#endif
+
   /* user mode, kernel access */
   if (user)
     {
@@ -174,6 +170,12 @@ page_fault (struct intr_frame *f)
   struct thread *t = thread_current ();
   uint32_t *upage = pg_round_down (fault_addr);
 
+  /* TMP */
+  struct lock *store = t->spt_elem_lock;
+  if (store != NULL)
+    lock_release (t->spt_elem_lock);
+  t->spt_elem_lock = NULL;
+
   if (is_user_vaddr (fault_addr) && 
       fault_addr  >= (user ? f->esp : t->user_esp) - 32)
     {
@@ -186,13 +188,36 @@ page_fault (struct intr_frame *f)
       if (source == FRAME_INVALID)
 	{      
 	  install_page (upage, kpage, true); /* TODO: what if false? */
+	  ASSERT (t->spt_elem_lock != NULL);
+	  lock_release (t->spt_elem_lock);
+	  t->spt_elem_lock = store;
+	  /*
+	  if (store != NULL)
+	    lock_acquire (t->spt_elem_lock);
+	  */
 	  return;
 	}
       else if (source == FRAME_SWAP)
 	{
-	  swap_fetch (t->tid, upage, kpage);     /* TODO: what if false? */	  
+	  swap_fetch (t->tid, upage, kpage); 
+
+	  ASSERT (t->spt_elem_lock != NULL);
+
+	  lock_release (t->spt_elem_lock);
+	  t->spt_elem_lock = store;
+	  /*
+	  if (store != NULL)
+	    lock_acquire (t->spt_elem_lock);
+	  */
 	  return;
 	}
+      lock_release (t->spt_elem_lock);
+      t->spt_elem_lock = store;
+      /*
+      if (store != NULL)
+	lock_acquire (t->spt_elem_lock);
+      */
+      return;
     }
 
   struct spt_directory_element *sde = 
@@ -201,10 +226,17 @@ page_fault (struct intr_frame *f)
     {
       struct spt_element *se = spt_find (sde, upage);
       if (se != NULL)
-	{
+	{  
 	  uint32_t *kpage = frame_get_page (PAL_USER);
 	  if (kpage == NULL)
 	    {
+	      lock_release (t->spt_elem_lock);
+	      t->spt_elem_lock = store;
+	      /*
+	      if (store != NULL)
+		lock_acquire (t->spt_elem_lock);
+	      */
+
 	      syscall_thread_exit (f, -1);
 	      return;
 	    }
@@ -215,12 +247,18 @@ page_fault (struct intr_frame *f)
               if (num_bytes_read != se->file_read_bytes)
 		{
 		  frame_free_page (kpage);
+		  lock_release (t->spt_elem_lock);
+		  t->spt_elem_lock = store;
+		  /*
+		  if (store != NULL)
+		    lock_acquire (t->spt_elem_lock);
+		  */
 		  syscall_thread_exit (f, -1);
 		  return;
 		}
 	      else 
 		{
-		  memset (kpage + se->file_read_bytes, 0,
+		  memset ((char *)kpage + se->file_read_bytes, 0,
 			  se->file_zero_bytes);
 		  spt_pagedir_update (t, upage, kpage, FRAME_FRAME,
 				      0, se->file, se->file_offset, 
@@ -228,28 +266,35 @@ page_fault (struct intr_frame *f)
 				      se->file_zero_bytes, 
 				      se->writable);
 		  frame_table_update (t->tid, upage, kpage);
+		  lock_release (t->spt_elem_lock);
+		  t->spt_elem_lock = store;
+		  /*
+		  if (store != NULL)
+		    lock_acquire (t->spt_elem_lock);		 
+		  */
+
 		  return;
 		}
 	    }
 	  else if (se->source == FRAME_SWAP)
 	    {
 	      swap_fetch (t->tid, upage, kpage);
+	      lock_release (t->spt_elem_lock);
+	      t->spt_elem_lock = store;
+	      /*
+	      if (store != NULL)
+		lock_acquire (t->spt_elem_lock);
+	      */
 	      return;
 	    }
-	  else 
-	    {
-	      //	      ASSERT (0);
-	    }
-
-	  /*	  else if (se->source == FRAME_ZERO)
-	    {
-	      memset (kpage, 0, PGSIZE);
-	      return;
-	    }
+	  lock_release (t->spt_elem_lock);
+	  t->spt_elem_lock = store;
+	  /*
+	  if (store != NULL)
+	    lock_acquire (t->spt_elem_lock);
 	  */
 	}
     }
-
   syscall_thread_exit (f, -1);
   return;
 

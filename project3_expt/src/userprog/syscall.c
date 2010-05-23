@@ -60,6 +60,8 @@ syscall_init (void)
 void
 thread_cleanup_and_exit (int status) 
 {
+  /*  if (status == -1)
+      debug_backtrace ();*/
   printf ("%s: exit(%d)\n", thread_name (), status);
   /* close all open file descriptors */
   struct thread *t = thread_current ();
@@ -92,8 +94,17 @@ thread_cleanup_and_exit (int status)
       free (w_elem);
     }
 
+  /* free mmapped */
+  while (!list_empty (&t->mmappings))
+    {
+      e = list_pop_back (&t->mmappings);
+      struct mapid_elem *me = list_entry (e, struct mapid_elem, elem);
+      thread_unmmap_free_pages_of_file (t, me);
+      free (me);
+    }
+
   /* Supp Page Table, Swap Table, and Frame Table Free */
-  //  spt_free (t->tid);
+  spt_free (t->tid);
 
   add_thread_to_exited_list (t->tid, status);
   
@@ -259,6 +270,8 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
       if (spt_page_exist (thread_current(), addr+pass_cur_ofs))
         {
           f->eax = -1;
+	  lock_release (thread_current ()->spt_elem_lock);
+	  thread_current ()->spt_elem_lock = NULL;
           return;
         }
       pass_cur_ofs += PGSIZE;
@@ -284,6 +297,8 @@ syscall_mmap (struct intr_frame *f, void *cur_sp)
                           PGSIZE-flen, true);
     }
   f->eax = thread_mmap (fil, addr);
+  lock_release (thread_current ()->spt_elem_lock);
+  thread_current ()->spt_elem_lock = NULL;
   return;
 }
 
