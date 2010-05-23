@@ -659,14 +659,11 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   if (pagedir_get_page (t->pagedir, upage) == NULL)
     {
-      //if (!spt_page_exist (t, upage))
-      //{
       bool install_status = 
 	spt_pagedir_update (t, upage, kpage, FRAME_FRAME, 0, NULL,
 			    0, 0, 0, writable) &&
 	frame_table_update (t->tid, upage, kpage);
       return install_status;
-      //}
     }
   return false;
 }
