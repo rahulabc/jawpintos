@@ -128,14 +128,6 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 }
 
-struct mapid_elem 
-  {   
-    mapid_t id;        /* mapping id for mmap */
-    void *start_upage; /* starting mapped upage pointer */
-    struct file *fp;   /* file size determines how many pages exist */
-    struct list_elem elem;
-  };  
-
 mapid_t
 thread_mmap (struct file *fp, void *start_upage)
 {
@@ -152,7 +144,6 @@ thread_mmap (struct file *fp, void *start_upage)
   return id; 
 }
 
-static
 void
 thread_unmmap_free_pages_of_file (struct thread *t, struct mapid_elem *me)
 {
@@ -377,14 +368,6 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
-  struct thread *t = thread_current();
-  struct list_elem* e = list_begin (&t->mmappings); 
-   while (e != list_end (&t->mmappings))
-    {   
-      struct mapid_elem *me = list_entry (e, struct mapid_elem, elem);
-      thread_unmmap_free_pages_of_file (t, me);
-      e = list_remove (e); 
-    }
  #ifdef USERPROG
   process_exit ();
 #endif
@@ -574,6 +557,7 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init (&t->waiting_on_child_exit_sema, 0);
 
   list_init (&t->mmappings);
+  t->spt_elem_lock = NULL;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

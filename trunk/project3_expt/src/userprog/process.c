@@ -590,37 +590,27 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       struct thread *t = thread_current ();
 
-      /*
-      struct spt_directory_element *sde =
-        spt_directory_find (t->tid);
-      if (sde == NULL)
-        {
-          sde = spt_directory_element_create (t->tid);
-          if (sde == NULL)
-            thread_cleanup_and_exit (-1);
-        }
-      struct spt_element *se = spt_find (sde, (uint32_t *) upage);
-      if (se == NULL)
-        {
-          se = spt_element_create (sde, (uint32_t *) upage);
-          if (se == NULL)
-            thread_cleanup_and_exit (-1);
-        }
-      spt_element_set_page (se, NULL, FRAME_FILE, 0, file, cur_ofs,
-                            page_read_bytes, page_zero_bytes,
-                            writable);
-      */
       if (!spt_pagedir_update (t, (uint32_t *)upage, NULL, FRAME_FILE, 0, file,
 			       cur_ofs, page_read_bytes, 
 			       page_zero_bytes, writable))
-	thread_cleanup_and_exit (-1);
-
+	{
+	  lock_release (t->spt_elem_lock);
+	  t->spt_elem_lock = NULL;
+	  thread_cleanup_and_exit (-1);
+	}
+      /*      
+	      printf ("loading file: upage = %p, writable = %d\n", 
+	      upage, writable);
+      */
       cur_ofs += page_read_bytes + page_zero_bytes;
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+
+      lock_release (t->spt_elem_lock);
+      t->spt_elem_lock = NULL;
     }
   return true;
 }
@@ -632,11 +622,17 @@ setup_stack (void **esp)
 {
   uint8_t *kpage;
   bool success = false;
+  struct spt_element *se = 
+    spt_find_or_create (thread_current ()->tid, 
+			(uint8_t *) PHYS_BASE - PGSIZE);
 
   kpage = frame_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL)
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+      success = install_page (se->upage, kpage, true);
+
+      spt_elem_lock_release (&se->spt_elem_lock);
+
       if (success)
         *esp = PHYS_BASE;
       else
@@ -659,14 +655,18 @@ install_page (void *upage, void *kpage, bool writable)
 {
   struct thread *t = thread_current ();
 
-  /* Verify that there's not already a page at that virtual                                                                                                                                                                                
+  /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   if (pagedir_get_page (t->pagedir, upage) == NULL)
     {
-      if (!spt_page_exist (t, upage))
-        return spt_pagedir_update (t, upage, kpage, FRAME_FRAME, 0, NULL,
-                                   0, 0, 0, writable) &&
-          frame_table_update (t->tid, upage, kpage);
+      //if (!spt_page_exist (t, upage))
+      //{
+      bool install_status = 
+	spt_pagedir_update (t, upage, kpage, FRAME_FRAME, 0, NULL,
+			    0, 0, 0, writable) &&
+	frame_table_update (t->tid, upage, kpage);
+      return install_status;
+      //}
     }
   return false;
 }

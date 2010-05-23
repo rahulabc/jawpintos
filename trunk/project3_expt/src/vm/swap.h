@@ -5,6 +5,8 @@
 #include "threads/thread.h"
 #include <inttypes.h>
 
+struct list_elem *clock_hand;
+
 void swap_init (void);
 bool swap_fetch (tid_t tid, uint32_t *upage, uint32_t *kpage);
 void *swap_evict (void);

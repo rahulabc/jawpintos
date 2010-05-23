@@ -8,6 +8,9 @@
 #include "threads/thread.h"
 #include <hash.h>
 
+struct lock spt_dir_lock;
+
+/* Location of the contents in Supp Page Table */
 enum frame_source 
   {
     FRAME_ZERO = 0,
@@ -17,14 +20,18 @@ enum frame_source
     FRAME_INVALID
   };
 
+/* Supp Page Table Directory element which keeps the
+   SPT of a process specified by TID */
 struct spt_directory_element
   {
-    tid_t tid;  /* key */
-    struct hash spt;
+    tid_t tid;                        /* key */
+    struct hash spt;                  /* Supplemental Page Table */    
     struct hash_elem spt_dir_elem;
-    struct lock spt_lock;
   };
 
+/* Supp Page Table element that stores all information
+   required to specify the location of the contents of 
+   the UPAGE referred in Supp Page Table */
 struct spt_element
   {
     uint32_t *upage;  /* key */
@@ -37,6 +44,7 @@ struct spt_element
     int file_zero_bytes;
     bool writable;
     struct hash_elem spt_elem;
+    struct lock spt_elem_lock;
   };
 
 
@@ -61,5 +69,8 @@ struct spt_directory_element *spt_directory_element_create (tid_t tid);
 struct spt_element *spt_element_create (struct spt_directory_element *sde,
 					uint32_t *upage);
 void spt_free_mmap (tid_t tid, void *upage);
+struct spt_element *spt_find_or_create (tid_t tid, void *upage);
+void spt_elem_lock_acquire (struct lock *lock);
+void spt_elem_lock_release (struct lock *lock);
 
 #endif /* vm/page.h */

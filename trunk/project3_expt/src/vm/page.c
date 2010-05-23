@@ -10,11 +10,12 @@
 #include "vm/swap.h"
 #include "filesys/file.h"
 
-#include <stdio.h> /*REMOVEME:*/
 
-static struct hash spt_directory; /* supplemental page table */
-static struct lock spt_dir_lock;
+/* set of supplemental page tables for each process */
+static struct hash spt_directory; 
 
+/* Hash function used for finding the Supp Page Table
+   for a specific process */
 static unsigned
 spt_directory_hash (const struct hash_elem *h_, void *aux UNUSED)
 {
@@ -23,6 +24,8 @@ spt_directory_hash (const struct hash_elem *h_, void *aux UNUSED)
   return hash_int (h->tid);
 }
 
+/* Comparison function used for the hash table of the set of supp page
+   tables, SPT_DIRECTORY */
 static bool
 spt_directory_less (const struct hash_elem *a_, const struct hash_elem *b_, 
 		    void *aux UNUSED)
@@ -34,6 +37,8 @@ spt_directory_less (const struct hash_elem *a_, const struct hash_elem *b_,
   return a->tid < b->tid;
 }
 
+/* Hash function used for finding a Supp Page Table 
+   entry for a known process */
 static unsigned
 spt_hash (const struct hash_elem *h_, void *aux UNUSED)
 {
@@ -41,6 +46,8 @@ spt_hash (const struct hash_elem *h_, void *aux UNUSED)
   return hash_bytes (&h->upage, sizeof (h->upage));
 }
 
+/* Comparison function used for the hash table of the Supp Page Table 
+   entries, SPT */
 static bool
 spt_less (const struct hash_elem *a_, const struct hash_elem *b_, 
 	  void *aux UNUSED)
@@ -58,6 +65,9 @@ spt_directory_init (void)
   lock_init (&spt_dir_lock);
 }
 
+/* Returns the pointer to SPT_DIRECTORY_ELEMENT that is 
+   associated with a process specified by the tid.
+   Returns NULL if does not exist. */
 struct spt_directory_element *
 spt_directory_find (tid_t tid)
 {
@@ -72,45 +82,49 @@ spt_directory_find (tid_t tid)
       return NULL;
     }
   struct spt_directory_element *spe = 
-    hash_entry (h, struct spt_directory_element, 
-		spt_dir_elem);
+    hash_entry (h, struct spt_directory_element, spt_dir_elem);
   lock_release (&spt_dir_lock);
   return spe;
 }
 
+/* Creates a SPT_DIRECTORY ELEMENT specified by a TID
+   and returns a pointer to it */
 struct spt_directory_element *
 spt_directory_element_create (tid_t tid)
 {
   struct spt_directory_element *sde = (struct spt_directory_element *)
     malloc (sizeof (struct spt_directory_element));
   if (sde == NULL)
-    return NULL; /* TODO: NEED TO HANDLE THIS MORE CAREFULLY */
+    return NULL;
   
   sde->tid = tid;
   hash_init (&sde->spt, spt_hash, spt_less, NULL);
-  lock_init (&sde->spt_lock);
+
   lock_acquire (&spt_dir_lock);
   hash_insert (&spt_directory, &sde->spt_dir_elem);
   lock_release (&spt_dir_lock);
   return sde;
 }
 
+/* Finds the SPT_ELEMENT from the Supp Page Table specified SDE
+   and returns the pointer to it */
 struct spt_element *
 spt_find (struct spt_directory_element *sde, uint32_t *upage)
 {
   struct spt_element tmp;
   tmp.upage = upage;
 
-  lock_acquire (&sde->spt_lock);
+  lock_acquire (&spt_dir_lock);
   struct hash_elem *h = hash_find (&sde->spt, &tmp.spt_elem);
   if (h == NULL)
     {
-      lock_release (&sde->spt_lock);
+      lock_release (&spt_dir_lock);
       return NULL;
     }
   
   struct spt_element *se = hash_entry (h, struct spt_element, spt_elem);
-  lock_release (&sde->spt_lock);
+  lock_release (&spt_dir_lock);
+  spt_elem_lock_acquire (&se->spt_elem_lock);
   return se;
 }
 
@@ -131,23 +145,29 @@ spt_element_set_page (struct spt_element *se, uint32_t *kpage,
   se->writable = writable;  
 }
 
+/* Creates a SPT_ELEMENT inside the Supp Page Table specified by SDE
+   and returns a pointer to it */
 struct spt_element *
 spt_element_create (struct spt_directory_element *sde, uint32_t *upage)
 {
   struct spt_element *se = (struct spt_element *)
     malloc (sizeof (struct spt_element));
   if (se == NULL)
-    return NULL; /* TODO: NEED TO HANDLE THIS MORE CAREFULLY */
+    return NULL; 
 
   se->upage = upage;  
   spt_element_set_page (se, NULL, FRAME_INVALID, 0, NULL,
 			0, 0, 0, false);
-  lock_acquire (&sde->spt_lock);
+
   hash_insert (&sde->spt, &se->spt_elem);
-  lock_release (&sde->spt_lock);
+  lock_init (&se->spt_elem_lock);
+  spt_elem_lock_acquire (&se->spt_elem_lock);
   return se;
 }
 
+
+/* Updates the SPT_ELEMENT as specified by the argument.
+   Creates an SPT_ELEMENT if it does not exist in Supp Page Table */
 bool
 spt_pagedir_update (struct thread *t, uint32_t *upage, 
 		    uint32_t *kpage, enum frame_source source,
@@ -155,11 +175,24 @@ spt_pagedir_update (struct thread *t, uint32_t *upage,
 		    off_t file_offset, int file_read_bytes,
 		    int file_zero_bytes, bool writable)
 {
+  struct spt_element *se = spt_find_or_create (t->tid, upage);
+  spt_element_set_page (se, kpage, source, swap_index, file, file_offset,
+			file_read_bytes, file_zero_bytes, writable);
+
+  if (source == FRAME_FILE)
+    return true;
+  return pagedir_set_page (t->pagedir, upage, kpage, writable);
+}
+
+/* Finds an SPT_ELEMENT and creates one if it does not exist */
+struct spt_element *
+spt_find_or_create (tid_t tid, void *upage)
+{
   struct spt_directory_element *sde = 
-    spt_directory_find (t->tid);
+    spt_directory_find (tid);
   if (sde == NULL)
     {
-      sde = spt_directory_element_create (t->tid);
+      sde = spt_directory_element_create (tid);
       if (sde == NULL)
 	return false;
     }
@@ -171,13 +204,10 @@ spt_pagedir_update (struct thread *t, uint32_t *upage,
       if (se == NULL)
 	return false;
     }
-  spt_element_set_page (se, kpage, source, swap_index, file, file_offset,
-			file_read_bytes, file_zero_bytes, writable);
-  if (source == FRAME_FILE)
-    return true;
-  return pagedir_set_page (t->pagedir, upage, kpage, writable);
+  return se;
 }
 
+/* Checks if UPAGE exists in Supp Page Table of process(thread) T */
 bool
 spt_page_exist (struct thread *t, uint32_t *upage)
 {
@@ -192,6 +222,7 @@ spt_page_exist (struct thread *t, uint32_t *upage)
   return true;
 }
 
+/* Gets the source of the SPT_ELEMENT specified by TID and UPAGE */
 enum frame_source
 spt_get_source (tid_t tid, uint32_t *upage)
 {
@@ -205,6 +236,8 @@ spt_get_source (tid_t tid, uint32_t *upage)
   return se->source;
 }
 
+/* Given an mmappd region's UPAGE, writes it to disk if dirty and
+   then clears the pagedir and frees the frame page */
 void
 spt_free_mmap (tid_t tid, void *upage)
 {
@@ -226,29 +259,30 @@ spt_free_mmap (tid_t tid, void *upage)
 
   pagedir_clear_page (t->pagedir, se->upage);
   frame_free_page (se->kpage);
+
+  spt_elem_lock_release (&se->spt_elem_lock);
   return;
 }
 
+/* Frees the SPT of a process TID */
 void
 spt_free (tid_t tid)
 {
   struct spt_directory_element *sde = 
     spt_directory_find (tid);
-  lock_acquire (&spt_dir_lock);
 
   if (sde != NULL)
     {
-      lock_acquire (&sde->spt_lock);
-        
       struct hash *spt = &sde->spt;
       struct hash_iterator i;
       hash_first (&i, spt);
       while (hash_next (&i))
 	{
-	  struct spt_element *se = hash_entry (hash_cur (&i),
-					       struct spt_element,
-					       spt_elem);
-	  if (se->source == FRAME_FRAME /*|| se->source == FRAME_ZERO */) 
+	  struct spt_element *se = 
+	    hash_entry (hash_cur (&i), struct spt_element, spt_elem);
+
+	  spt_elem_lock_acquire (&se->spt_elem_lock);
+	  if (se->source == FRAME_FRAME) 
 	    {
 	      pagedir_clear_page (get_thread (tid)->pagedir, se->upage);
 	      frame_free_page (se->kpage);
@@ -257,12 +291,32 @@ spt_free (tid_t tid)
 	    swap_free (se->swap_index);
 	  
 	  hash_delete (spt, &se->spt_elem);
+	  spt_elem_lock_release (&se->spt_elem_lock);
 	  free (se);
-	  hash_first (&i, spt);
+	  hash_first (&i, spt);	  
 	}
-      lock_release (&sde->spt_lock);
       hash_delete (&spt_directory, &sde->spt_dir_elem);
       free (sde);
     }
-  lock_release (&spt_dir_lock);
+}
+
+/* Acquires lock for an SPT_ELEM */
+void
+spt_elem_lock_acquire (struct lock *lock)
+{
+  struct thread *t = thread_current ();
+  if (t->spt_elem_lock == NULL)
+    {
+      lock_acquire (lock);
+      t->spt_elem_lock = lock;
+    }
+}
+
+/* Releases lock for an SPT_ELEM */
+void
+spt_elem_lock_release (struct lock *lock)
+{
+  struct thread *t = thread_current ();
+  lock_release (lock);
+  t->spt_elem_lock = NULL;
 }
