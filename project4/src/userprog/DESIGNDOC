@@ -1,0 +1,588 @@
+             +--------------------------+
+             |          CS 140          |
+             | PROJECT 2: USER PROGRAMS |
+             |     DESIGN DOCUMENT      |
+             +--------------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Woo Hyun Jin <whjin@stanford.edu>
+Joon Yeong Kim <kim64@stanford.edu>
+Anand Madhavan <manand@stanford.edu>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+We fixed pintos BLOCK_ROLE_CNT bug. We spent a lot of time in fixing this
+bug. Please, please give us some extra points.
+We lost a lot of points in project 1.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+               ARGUMENT PASSING
+               ================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+***************************************************************************
+In process.c
+
+/* argument element struct used for the list that is 
+   used to keep track of the string pointer and 
+   address of the arguments in the stack */
+struct argv_elem 
+  {
+    char *argv;               /* argument string */
+    void *addr;               /* argument address in stack */
+    struct list_elem elem;   
+  };
+
+Element to put in the list that stores the string pointers and
+their addresses when pushing arguments and their addresses into
+the stack.
+***************************************************************************
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?
+
+***************************************************************************
+Right after the stack frame has been initialized and load has completed, 
+we push the arguments - via the push_arguments function defined in 
+process.c - by tokenizing the command line input received and copying 
+each token (the argv[n][..]'s), from left to right, to the stack. At the 
+same time, the address of the tokens in the stack are stored and pushed 
+back to the argv_list, from left to right, so that it can be retrieved 
+later for pushing in argv[n]'s to the stack. 
+
+After the tokens have been copied into the stack, the stack is
+word-aligned so that the stack pointer points to an address that is a 
+multiple of 4. The sentinel of 0 is pushed in, and the argument address,
+that we stored in argv_list, are pushed into the stack, followed by
+the number of arguments, argc. Because we copied the arguments from
+left to right and inserted into the back of the argv_list in the same
+order, we push the addresses in the opposite order by popping from the
+back of the list to ensure that the argument addresses are pushed in
+the right order.
+
+The stack page overflow is avoided by checking that the sum of the
+lengths of token strings and the space needed for the argument
+addresses, return address, and etc. is less than the page size as we
+push the arguments into the stack. If the number of bytes needed exceeds
+the page size, we terminate the process. 
+***************************************************************************
+
+---- RATIONALE ----
+
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+
+***************************************************************************
+strtok keeps internal state to track the tokens across a sequence of calls 
+by the caller. This makes it thread unsafe, because two callers cannot call 
+it at the same time and expect reliable outputs. The strtok_r alleviates 
+this by taking a third parameter which keeps this state, thus allowing for 
+a thread-safe implementation.
+***************************************************************************
+
+>> A4: In Pintos, the kernel separates commands into a executable name
+>> and arguments.  In Unix-like systems, the shell does this
+>> separation.  Identify at least two advantages of the Unix approach.
+
+***************************************************************************
+There would be three solid advantages to Unix-like approach.
+One, redirection of STDOUT, STDIN, and STDERR to files using operators
+such as >, <, < &, and etc. Two, piping of STDOUT, STDIN, and STDERR
+to other commands such as 'sort'. Three, running a sequence of commands
+in a single command. All three could also be done in the kernel but
+it would require significantly more code in the kernel because
+it has to keep track of all the keywords and operators and it would also
+need a measure to distinguish between what is a command and
+what is an argument.
+***************************************************************************
+
+                 SYSTEM CALLS
+                 ============
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+***************************************************************************
+In syscall.h ...
+
+/* File list element */
+struct file_elem
+  {
+    int fd;                  /* file descriptor */
+    struct file *file;
+    struct list_elem elem;
+  };
+
+A file descriptor element to be inserted into the file descriptor list 
+('file_list') that each process holds.
+
+===========================================================================
+In thread.h ....
+
+struct thread
+  {
+    ...
+    /* File descriptor list */
+    struct list file_list;
+
+    /* Child process (thread) list */
+    struct list children_list;
+
+    /* Child threads waited on */
+    struct list waited_children_list;
+
+    /* executable file so it can allow deny writes when in existence */
+    struct file *exec_file;
+    
+    /* parent thread id */
+    tid_t parent_id;
+
+    /* semaphore used for parent waiting for the child 
+       process to exit */
+    struct semaphore waiting_on_child_exit_sema;
+
+    /* list of acquired locks that needs to be freed when
+       process terminates before releasing all the locks */
+    struct list acquired_locks;
+  };
+
+/* File descriptor list */
+struct list file_list;
+       
+list of the file descriptors opened by the current thread (process).
+
+/* Child process (thread) list */
+struct list children_list;
+
+list of child processes executed by the current thread to allow current 
+thread only to wait on its children.
+
+/* Child threads waited on */
+struct list waited_children_list;
+
+list of child processes that current thread has waited on to disallow
+current thread from waiting on the child thread more than once.
+
+/* executable file so it can allow/deny writes when in existence */
+struct file *exec_file;
+
+current thread's executable file, so we can deny writes when thread is 
+in existence.
+    
+/* parent thread id */
+tid_t parent_id;
+
+current thread's parent's tid which is used to up the parent thread's 
+semaphore if its parents is waiting for the current thread to exit.
+
+/* semaphore used for parent waiting for the child 
+   process to exit */
+struct semaphore waiting_on_child_exit_sema;
+
+semaphore used to ensure that parent process waits until the child process
+exits.
+
+/* list of acquired locks that needs to be freed when
+   process terminates before releasing all the locks */
+struct list acquired_locks;
+
+list of all locks acquired by the current thread so that all locks can be
+released when the process terminates.
+
+
+struct child_elem
+  {
+    tid_t pid;
+    struct list_elem elem;
+  };
+
+element struct to be inserted into children_list for the parent thread
+
+struct wait_child_elem
+  {
+    tid_t pid;
+    struct list_elem elem;
+  };
+
+element struct to be inserted into waited_children_list for the parent
+thread
+
+===========================================================================
+In process.c ...
+
+/* struct passed into start_process when a child process is
+   executed by the parent. Success of load and process running
+   is passed back to the parent process via this struct */
+struct process_execute_args 
+  { 
+    bool status;                  /* success of load */
+    char *file_name;              /* commandline input passed in to 
+				     execute the child process */
+    struct lock lock;             /* lock used for the condition variable */
+    struct condition condition;   /* condition variable used for 
+				     synchronization needed when the
+				     parent waits until child 
+				     successfully loads */
+  };
+
+struct to ensure that the parent thread exits exec () syscall after the
+child process has successfully loaded its file.
+
+bool status;                  /* success of load */
+
+stores whether load child process successfully loaded its file that is 
+used by parent to add the child to its children_list if child loaded 
+successfully.
+
+char *file_name;              /* commandline input passed in to 
+			         execute the child process */
+
+command line input passed to the child process which is used to load and
+run the user program.
+
+struct lock lock;             /* lock used for the condition variable */
+
+lock to be used with the condition variable below.
+
+struct condition condition;   /* condition variable used for 
+				 synchronization needed when the
+				 parent waits until child 
+				 successfully loads */
+
+condition variable waited by the parent process until the child process
+finishes its load process and signals the condition variable to return
+to the parent.
+
+
+/* element for exited_list which stores the pid of the process
+   that has exited or has been terminated */
+struct exit_elem 
+  { 
+    tid_t pid;               
+    int status;              /* return status the exit syscall received */
+    struct list_elem elem;
+  };
+
+Element to be inserted into exited_list. It contains the pid and exit
+status of a thread that has exited or has been terminated */
+
+
+/* List of threads that have exited or been terminated by kernel */
+static struct list exited_list;
+
+A global list of threads that have exited or have been terminated the 
+kernel.
+
+===========================================================================
+In synch.h ...
+
+/* Lock. */
+struct lock 
+  {
+    struct thread *holder;      /* Thread holding lock (for debugging). */
+    struct semaphore semaphore; /* Binary semaphore controlling access. */
+
+    struct list_elem elem;
+  };
+
+struct list_elem elem;
+
+list_elem so that the lock can be inserted into acquired_locks list for
+a thread 
+***************************************************************************
+
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+
+***************************************************************************
+We currently maintain a single global file-descriptor generator ('next_fd') 
+across the OS. This gets incremented each time an 'open' call is made. So a 
+given file-name can be associated with multiple file descriptors. We 
+additionally also maintain a list of open file descriptors and the file 
+pointer associated with it in the thread structure ('file_list'). This
+allows a thread to close only file descriptors it has opened. 
+***************************************************************************
+
+---- ALGORITHMS ----
+
+>> B3: Describe your code for reading and writing user data from the
+>> kernel.
+
+***************************************************************************
+For reading to and writing from the buffer that is part of the user data, 
+we first check whether the buffer pointer is non-null, that it is in user 
+space (is_user_vaddr), and is mapped to physical memory (pagedir_get_page). 
+We then similarly check the validity of end of the buffer (buffer + length). 
+After that, we check the validity of every (buffer + PGSIZE * i) for i = 1, 2, 
+and so on as long as the sum is less than the end of the buffer. 
+
+Then, in order to read and write, a lock for the file system has to be 
+acquired and file_read, file_write is called respectively. (filesys protection
+is described in more detail in B10). Also, for the executable file that is 
+loaded in process.c, we do file_deny_write to prevent other threads writing 
+on this file. 
+***************************************************************************
+
+>> B4: Suppose a system call causes a full page (4,096 bytes) of data
+>> to be copied from user space into the kernel.  What is the least
+>> and the greatest possible number of inspections of the page table
+>> (e.g. calls to pagedir_get_page()) that might result?  What about
+>> for a system call that only copies 2 bytes of data?  Is there room
+>> for improvement in these numbers, and how much?
+
+***************************************************************************
+The least possible number of inspections of the page table would be 1
+in the case where the entire data falls exactly in the page (assuming 
+PG_SIZE is 4,096 bytes as exists). Using our method of checking (described
+in B3), the maximum number of inspections of the page table would be 2 for
+the 4,096 bytes of data.  For a system call that only copies 2 bytes of 
+data, we could still be spanning two pages and thus, atmost will still 
+need two inspections in the worst case. There is not much improvement 
+that can be made. 
+
+Note that in our specific implementation we always check atleast the 
+begin and the end of the buffer and thus incur atleast 2 inspections. This
+can be reduced to 1 (as described above), for the case where the data fits
+exactly in the page. 
+***************************************************************************
+
+>> B5: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+
+***************************************************************************
+Since in pintos a process can only execute a single thread, a thread is 
+equivalent to a process in this context.
+
+In our design, each parent process keeps a list of its child processes
+('children_list'). We also keep a list of child processes that it has 
+waited on before ('waited_children_list'). 
+
+When a wait on a pid is called, the parent first goes through its 
+children_list and finds if the pid corresponds to is its own child. If not, 
+wait returns -1. After confirming that it is its child, the parent checks 
+if it had already waited on the pid before by checking 
+waited_children_list. If it has, wait returns -1. Otherwise, it waits on
+the child by downing a semaphore in the parent ('waiting_on_child_exit_sema')
+initialized to zero to wait until the child process exits and ups its
+parent's waiting_on_child_exit_sema.
+
+Whether the child terminates normally or by an exception, there is a 
+routine called syscall_thread_exit in our design which frees all the 
+resource and locks assigned to a process. When the child process exits
+via this routine, the parent's waiting_on_child_exit_sema is upped so that
+the parent process can return from its wait () function.
+***************************************************************************
+
+>> B6: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> paragraphs, describe the strategy or strategies you adopted for
+>> managing these issues.  Give an example.
+
+***************************************************************************
+It is true that a lot of bad pointer value checking has to be done in each
+syscall. However, the actions that needs to be taken to retrieve the 
+argument values from the stack is exactly the same for all syscalls with
+some minor differences such as the types of the arguments that we get from
+the stack. 
+
+The macro that we have introduced in our design, VALIDATE_AND_GET_ARG, 
+simplifies the code by replacing the validation and retrieval of arguments
+with a simple function-like macro. By incrementing the stack pointer for 
+appropriate number of times and calling the VALIDATE_AND_GET_ARG macro, 
+we can do a series of pointer validation without obscuring the primary 
+function of the code.
+
+When any error is detected we direct the process to a routine that we 
+have created, 'syscall_thread_exit', which frees all the memory space we 
+have allocated for the thread, such as the file_list elements, child_list 
+elements, etc. This occurs for failed mallocs as well (malloc validation 
+and error handling is simplified by using the MALLOC_AND_VALIDATE macro 
+in syscall.c).
+
+We also have included a 'acquired_locks' list in the thread struct which 
+is a list of all the locks that the thread has acquired. By keeping this 
+list, we can release the locks that have not been already released 
+because of the error.
+
+For example, if malloc failed during syscall_wait, (during list population) 
+syscall_thread_exit is called in the macro MALLOC_AND_VALIDATE. This in 
+turn frees up any malloced thread list elems and locks that the thread 
+has acquired, but not yet released.
+***************************************************************************
+
+---- SYNCHRONIZATION ----
+
+>> B7: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+
+***************************************************************************
+In our design, we pass in a struct called process_execute_args into 
+start_process () instead of the file name. This structure is used as a
+condition variable, that gets signaled when the child successfully loads,
+and a storage for the file name needed for loading and the 'status' 
+variable that stores whether load of the child process succeeded or not.
+
+When a parent process executes the child process in process_execute (), 
+it creates a process_execute_args and waits for the condition variable
+inside the struct to be signaled by the child process. 
+
+The child process receives the process_execute_args in start_process and 
+sets the 'status' variable to true if load succeeded and false if load 
+failed. Then, the condition variable is signaled so that the parent
+process can continue after the child's load is done.
+***************************************************************************
+
+>> B8: Consider parent process P with child process C.  How do you
+>> ensure proper synchronization and avoid race conditions when P
+>> calls wait(C) before C exits?  After C exits?  How do you ensure
+>> that all resources are freed in each case?  How about when P
+>> terminates without waiting, before C exits?  After C exits?  Are
+>> there any special cases?
+
+***************************************************************************
+Firstly each parent maintains a list of child_pid's that it has exec'd.
+Each process adds its pid to a global exited list when it exits, sema_up's
+its parent (if any) that might be waiting on. And then only does it 
+removes itself from the all_list. Parents wait on threads by calling 
+'thread_wait_on_child_exit' (in thread.c) with the child id.
+
+P calls wait(C) before C exits: C is still in the 'all_list'. So
+P just waits on C and then returns its exit status after it has been woken
+up on C's exit.  In the case where C is exiting and has woken up the parent, 
+added its exit status, but not yet removed itself from the 'all_list', 
+the parent as described, waits on the child. 
+
+P calls wait(C) after C exits: Here C is no more in the all_list, in 
+which case P just returns the exit status of C that C put in the exit_list
+when it exited (note that C only removes itself from the all_list after
+it has added its exit status into the 'exit_list'). 
+
+When a child unexpectedly exits, it calls 'syscall_thread_exit' and
+sema_ups its parents 'waited_on_child_exit_sema'. This ensures that the 
+parent is always woken up even if the child dies unexpectedly. 
+
+If P dies without waiting, the child will not find its parent in the
+'all_list' and hence will not be 'sema_up'ing its parent.
+
+If P exits after C has exited, it is woken up during C's exit and normally
+exits and cleans up in 'syscall_thread_exit' where it releases all
+held locks and resources (see also B6).  
+ 
+Additionaly, note that the parent when it exits, clears its children from 
+the exited list so as to allow keep this list small. 
+***************************************************************************
+
+---- RATIONALE ----
+
+>> B9: Why did you choose to implement access to user memory from the
+>> kernel in the way that you did?
+
+***************************************************************************
+The method we describe in B3, efficiently checks for buffer validities.
+However, it does so for every pointer access. While the code is quite 
+simple in this case, it can be made more efficient by following the second 
+approach suggested in the Pintos docs, which takes advantage of the MMU and
+bypasses the checks each time and exploits the page_fault mechanism.
+***************************************************************************
+
+>> B10: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+
+***************************************************************************
+Each thread maintains a list of file descriptors it has opened along with
+their file pointers. These are used to map the descriptors to the files
+which are then used to access the filesys code. The advantages are that
+only our thread knows about its file descriptors. Error checking for thread
+for file-related calls can be made using this list and it can only decide 
+to service those that it has opened/opening. Disadvantages are that it 
+is a list and if there is a long list of files it has opened, this could
+be expensive to traverse. The other disadvantage is that file descriptor
+sharing between threads will require more work since we do not maintain 
+a global list of open file descriptors.
+
+Note on our filesys locks:
+We have common global locks for the 'create' and 'remove'. We have a common 
+global lock for 'read' and 'write' (although this could be one per inode for 
+more flexibility). These 'read' and 'write' locks are also used by 'seek' and 
+'tell' and are acquired in the same order in all these methods, in order
+to avoid deadlocks. The file-descriptor allocator is locked using a separate
+global lock as well.
+***************************************************************************
+
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+
+***************************************************************************
+In project 2 version of Pintos, each process is associated with just one 
+thread (itself) and no more. So our approach has been to retain the 
+identity mapping. This straightforward approach kept the code very 
+understandable and simple. If however, a process were to be associated with 
+more than one threads, one can see how a mechanism to associate all threads 
+that are part of the same process can be beneficial and result in 
+efficiency gains. 
+***************************************************************************
+
+               SURVEY QUESTIONS
+               ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+Took just about the right amount of time for its reputation.
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+syscall handling gave us a great idea of how user processes and the kernel interact.
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+No, you guys're doing a great job.
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+
+***************************************************************************
+Please don't dock so much points on the subjective-evaluation part of our 
+first assignment but if you HAVE to, do make the first assignment not
+count for so much of the grade. It is very demotivating for the rest of 
+the quarter.
+***************************************************************************
+ 
+>> Any other comments?

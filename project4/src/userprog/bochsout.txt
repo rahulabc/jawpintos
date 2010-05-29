@@ -1,0 +1,129 @@
+00000000000i[     ] Bochs x86 Emulator 2.2.6
+00000000000i[     ]   Build from CVS snapshot on January 29, 2006
+00000000000i[     ] System configuration
+00000000000i[     ]   processors: 1
+00000000000i[     ]   A20 line support: yes
+00000000000i[     ]   APIC support: no
+00000000000i[     ] CPU configuration
+00000000000i[     ]   level: 5
+00000000000i[     ]   fpu support: yes
+00000000000i[     ]   paging support: yes, tlb enabled: yes
+00000000000i[     ]   mmx support: yes
+00000000000i[     ]   sse support: no
+00000000000i[     ]   v8086 mode support: yes
+00000000000i[     ]   VME support: yes
+00000000000i[     ]   3dnow! support: no
+00000000000i[     ]   PAE support: no
+00000000000i[     ]   PGE support: no
+00000000000i[     ]   PSE support: yes
+00000000000i[     ]   x86-64 support: no
+00000000000i[     ]   SEP support: no
+00000000000i[     ] Optimization configuration
+00000000000i[     ]   Guest2HostTLB support: no
+00000000000i[     ]   RepeatSpeedups support: no
+00000000000i[     ]   Icache support: no
+00000000000i[     ]   Host Asm support: yes
+00000000000i[     ]   Fast function calls: no
+00000000000i[     ] Devices configuration
+00000000000i[     ]   NE2000 support: no
+00000000000i[     ]   PCI support: no
+00000000000i[     ]   SB16 support: no
+00000000000i[     ]   USB support: no
+00000000000i[     ]   VGA extension support:  
+00000000000i[MEM0 ] allocated memory at 0x2ab67f2c0010. after alignment, vector=0x2ab67f2c1000
+00000000000i[MEM0 ] 4.00MB
+00000000000i[MEM0 ] rom at 0xffff0000/65536 ('/usr/class/cs140/x86_64/share/bochs/BIOS-bochs-latest')
+00000000000i[MEM0 ] rom at 0xc0000/32768 ('/usr/class/cs140/x86_64/share/bochs/VGABIOS-lgpl-latest')
+00000000000i[CMOS ] Using specified time for initial clock
+00000000000i[CMOS ] Setting initial clock to: Wed Dec 31 16:00:00 1969 (time0=0)
+00000000000i[DMA  ] channel 4 used by cascade
+00000000000i[DMA  ] channel 2 used by Floppy Drive
+00000000000i[VGA  ] interval=40000
+00000000000i[     ] init_mem of 'harddrv' plugin device by virtual method
+00000000000i[     ] init_mem of 'keyboard' plugin device by virtual method
+00000000000i[     ] init_mem of 'serial' plugin device by virtual method
+00000000000i[     ] init_mem of 'parallel' plugin device by virtual method
+00000000000i[     ] init_mem of 'extfpuirq' plugin device by virtual method
+00000000000i[     ] init_mem of 'speaker' plugin device by virtual method
+00000000000i[     ] init_dev of 'harddrv' plugin device by virtual method
+00000000000i[HD   ] HD on ata0-0: '/tmp/6aTMnyRTAl.dsk' 'flat' mode 
+00000000000i[HD   ] HD on ata0-1: 'build/filesys.dsk' 'flat' mode 
+00000000000i[HD   ] Using boot sequence disk, none, none
+00000000000i[HD   ] Floppy boot signature check is enabled
+00000000000i[     ] init_dev of 'keyboard' plugin device by virtual method
+00000000000i[KBD  ] will paste characters every 1000 keyboard ticks
+00000000000i[     ] init_dev of 'serial' plugin device by virtual method
+00000000000i[SER  ] com1 at 0x03f8 irq 4
+00000000000i[     ] init_dev of 'parallel' plugin device by virtual method
+00000000000i[PAR  ] parallel port 1 at 0x0378 irq 7
+00000000000i[     ] init_dev of 'extfpuirq' plugin device by virtual method
+00000000000i[     ] init_dev of 'speaker' plugin device by virtual method
+00000000000i[SPEAK] Failed to open /dev/console: Permission denied
+00000000000i[SPEAK] Deactivating beep on console
+00000000000i[     ] reset of 'harddrv' plugin device by virtual method
+00000000000i[     ] reset of 'keyboard' plugin device by virtual method
+00000000000i[     ] reset of 'serial' plugin device by virtual method
+00000000000i[     ] reset of 'parallel' plugin device by virtual method
+00000000000i[     ] reset of 'extfpuirq' plugin device by virtual method
+00000000000i[     ] reset of 'speaker' plugin device by virtual method
+00000000000i[     ] addr fff0 len 8
+00000000000i[     ] addr fff0 len 7
+00000000000i[     ] addr c002a668 len 1
+00000000000i[     ] addr c002a668 len 1
+00000000000i[     ] addr c002a668 len 1
+00000000000i[     ] addr c002a668 len 1
+00000000000i[     ] addr c002a668 len a
+00000000000i[     ] addr c002a668 len 1
+00000000000i[     ] addr c002a668 len 1
+00000000000i[     ] setting breakpoint at c0020000
+00000000000i[     ] setting breakpoint at c002a668
+00000003740i[BIOS ] $Revision: 1.160 $ $Date: 2006/01/25 17:51:49 $
+00000317563i[KBD  ] reset-disable command received
+00000425250i[VBIOS] VGABios $Id: vgabios.c,v 1.63 2005/12/26 19:50:26 vruppert Exp $
+00000428257i[VBIOS] VBE Bios $Id: vbe.c,v 1.48 2005/12/26 19:50:26 vruppert Exp $
+00000737872i[BIOS ] ata0-0: PCHS=1/16/63 translation=none LCHS=1/16/63
+00000793268i[BIOS ] ata0-1: PCHS=5/16/63 translation=none LCHS=5/16/63
+00000841969e[HD   ] ata1: device set to 0 which does not exist
+00000842262e[HD   ] ata1: device set to 1 which does not exist
+00002166730e[HD   ] ata1: device set to 0 which does not exist
+00002167234e[HD   ] ata1: device set to 1 which does not exist
+00002312970e[HD   ] ata1: device set to 0 which does not exist
+00002313488e[HD   ] ata1: device set to 1 which does not exist
+00002703593i[     ] found breakpoint at c002a668
+00002703593i[     ] stopped with ac1
+00002703593i[     ] reg 8 set to c002a668
+00002703593i[     ] reg 41 set to ffffffff
+00002703593i[     ] Removing breakpoint at c0020000
+00002703593i[     ] Removing breakpoint at c002a668
+00002703593i[     ] addr c010afd8 len 4
+00002703593i[     ] stepping
+00002703594i[     ] stopped with ac2
+00002703594i[     ] setting breakpoint at c0020000
+00002703594i[     ] setting breakpoint at c002a668
+00002703594i[     ] stepping
+00002703595i[     ] stopped with ac2
+00002703595i[     ] stepping
+00002703596i[     ] stopped with ac2
+00002703596i[     ] stepping
+00002703597i[     ] stopped with ac2
+00002703597i[     ] stepping
+00002703598i[     ] stopped with ac2
+00002703598i[     ] stepping
+00002703599i[     ] stopped with ac2
+00002703599i[     ] Removing breakpoint at c0020000
+00002703599i[     ] Removing breakpoint at c002a668
+00002703599i[     ] addr c010aee8 len 4
+00002703599i[     ] addr c010afd8 len 4
+00002703599i[     ] addr c010afd8 len 4
+00002703599i[     ] addr c000ef00 len 8
+00002703599i[     ] addr c010afd8 len 4
+00002703599i[     ] addr c010afd0 len 4
+00002703599i[     ] addr c010afd4 len 4
+00002703599i[     ] addr c010afd0 len 4
+00002703599i[     ] addr c010afc4 len 4
+00002703599i[     ] addr c010afd0 len 4
+00002703599i[     ] addr c010affc len 4
+00002703599i[     ] addr c010aff0 len 4
+00002703599i[     ] addr c010aff4 len 4
+00002703599i[     ] addr 0 len 8
+00002703599i[     ] addr 0 len 7
