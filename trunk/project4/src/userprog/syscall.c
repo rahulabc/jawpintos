@@ -1,6 +1,8 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <list.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -10,7 +12,6 @@
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-#include <list.h>
 #include "devices/input.h"
 #include "userprog/process.h"
 
@@ -30,6 +31,11 @@ static void syscall_write (struct intr_frame *f, void *cur_sp);
 static void syscall_seek (struct intr_frame *f, void *cur_sp);
 static void syscall_tell (struct intr_frame *f, void *cur_sp);
 static void syscall_close (struct intr_frame *f, void *cur_sp);
+static void syscall_chdir (struct intr_frame *f, void *cur_sp);
+static void syscall_mkdir (struct intr_frame *f, void *cur_sp);
+static void syscall_readdir (struct intr_frame *f, void *cur_sp);
+static void syscall_isdir (struct intr_frame *f, void *cur_sp);
+static void syscall_inumber (struct intr_frame *f, void *cur_sp);
 
 /* pointer validity */
 static bool syscall_invalid_ptr (const void *ptr);
@@ -186,6 +192,21 @@ syscall_handler (struct intr_frame *f)
         break;
       case SYS_CLOSE:
         syscall_close (f, cur_sp);
+        break;
+      case SYS_CHDIR:
+        syscall_chdir (f, cur_sp);
+        break;
+      case SYS_MKDIR:
+        syscall_mkdir (f, cur_sp);
+        break;
+      case SYS_READDIR:
+        syscall_readdir (f, cur_sp);
+        break;
+      case SYS_ISDIR:
+        syscall_isdir (f, cur_sp);
+        break;
+      case SYS_INUMBER:
+        syscall_inumber (f, cur_sp);
         break;
       default :
         printf ("Invalid system call! #%d\n", syscall_num);
@@ -368,7 +389,7 @@ syscall_read (struct intr_frame *f, void *cur_sp)
   void * buffer;
   unsigned length;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
-  cur_sp += sizeof (void *);
+  cur_sp += sizeof (int);
   VALIDATE_AND_GET_ARG (cur_sp, buffer, f);
   cur_sp += sizeof (void *);
   VALIDATE_AND_GET_ARG (cur_sp, length, f);
@@ -445,7 +466,7 @@ syscall_write (struct intr_frame *f, void *cur_sp)
 
   /* terminate process if any page that is occupied by the 
      buffer is invalid */
-  void *buffer_tmp_ptr = buffer + PGSIZE;
+  const void *buffer_tmp_ptr = buffer + PGSIZE;
   while (buffer_tmp_ptr < buffer + length)
     {
       if (syscall_invalid_ptr (buffer_tmp_ptr))
@@ -571,3 +592,51 @@ find_file (int fd)
     }
   return NULL;
 }
+
+static void 
+syscall_chdir (struct intr_frame *f, void *cur_sp)
+{
+  const char *dir;
+  VALIDATE_AND_GET_ARG (cur_sp, dir, f);
+
+}
+
+static void 
+syscall_mkdir (struct intr_frame *f, void *cur_sp)
+{
+  const char *dir;
+  VALIDATE_AND_GET_ARG (cur_sp, dir, f);
+  if ( strlen (dir) == 0 )
+    {
+      f->eax = 0;
+      return;
+    }
+  f->eax = 1;
+  return;
+}
+
+static void 
+syscall_readdir (struct intr_frame *f, void *cur_sp)
+{
+  int fd;
+  VALIDATE_AND_GET_ARG (cur_sp, fd, f);
+  cur_sp += sizeof (int);
+  const char *dir;
+  VALIDATE_AND_GET_ARG (cur_sp, dir, f);
+}
+
+static void 
+syscall_isdir (struct intr_frame *f, void *cur_sp)
+{
+  int fd;
+  VALIDATE_AND_GET_ARG (cur_sp, fd, f);
+}
+
+static void 
+syscall_inumber (struct intr_frame *f, void *cur_sp)
+{
+  int fd;
+  VALIDATE_AND_GET_ARG (cur_sp, fd, f);
+}
+
+
