@@ -10,6 +10,7 @@ void cache_read (struct block *, block_sector_t, void *,
 void cache_write (struct block *, block_sector_t, const void *,
 		  off_t, off_t, struct inode_disk *);
 void cache_flush (struct inode_disk *);
+void cache_flush_all (void);
 void cache_init (void);
 
 #endif /* filesys/cache.h */
