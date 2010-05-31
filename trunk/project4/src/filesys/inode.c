@@ -146,7 +146,8 @@ byte_to_sector (struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
   off_t block_index = pos / BLOCK_SECTOR_SIZE;
-  if (pos >= inode->data.length)
+  off_t num = inode->data.length;
+  if (pos >= (num + (512 - num % 512)))
     return -1;
   return get_sector (&inode->data, block_index);
 }
@@ -266,7 +267,7 @@ inode_get_inumber (const struct inode *inode)
    If INODE was also a removed inode, frees its blocks. */
 void
 inode_close (struct inode *inode) 
-{
+{ 
   /* Ignore null pointer. */
   if (inode == NULL)
     return;
@@ -276,6 +277,7 @@ inode_close (struct inode *inode)
     {
       /* Flush cache */
       cache_flush (fs_device, &inode->data);
+      block_write (fs_device, inode->sector, &inode->data);
  
       /* Remove from inode list and release lock. */
       list_remove (&inode->elem);
@@ -361,34 +363,41 @@ extend_and_write (struct inode *inode, const void *buffer_, off_t size,
       off_t flength = inode_length (inode);
       block_sector_t sector_idx = byte_to_sector (inode, flength);
       off_t block_start = flength % BLOCK_SECTOR_SIZE;
-      if (sector_idx == (block_sector_t)(-1))
+      if (block_start == 0) //&& flength != 0)
         {
-          if(free_map_allocate_multiple (1, 
-                                         flength/BLOCK_SECTOR_SIZE, 
-                                         &inode->data))
-            sector_idx = get_sector (&inode->data, flength/BLOCK_SECTOR_SIZE);
-          else
+          if (free_map_allocate_multiple (1, 
+                                         flength / BLOCK_SECTOR_SIZE, 
+					  &inode->data))
+	    sector_idx = byte_to_sector (inode, flength);
+	  else
             {
               lock_release (&inode->extension_lock);
               return bytes_written;
             }
         }
       off_t block_left = BLOCK_SECTOR_SIZE - block_start;
+      //printf ("zeroes: sector_idx: %d, offset: %d, size: %d, fsize: %d\n",
+      //      sector_idx, block_start, block_left, flength);
       cache_write (fs_device, sector_idx, zeros + block_start, 
                    block_start, block_left, &inode->data);
 
-      if (sector_idx == get_sector (&inode->data, offset/BLOCK_SECTOR_SIZE))
+      if (sector_idx == get_sector (&inode->data, 
+				    offset / BLOCK_SECTOR_SIZE))
         {
           int sector_ofs = offset % BLOCK_SECTOR_SIZE; 
           int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
-
           int chunk_size = size < sector_left ? size : sector_left;
+	  //printf ("d: sector_idx: %d, offset: %d, size: %d, fsize: %d\n",
+	  //  sector_idx, sector_ofs, chunk_size, flength);
           cache_write (fs_device, sector_idx, buffer + bytes_written,
                        sector_ofs, chunk_size, &inode->data);
 
           size -= chunk_size;
           offset += chunk_size;
-          inode->data.length += chunk_size;
+	  if (inode->data.length % BLOCK_SECTOR_SIZE == sector_ofs)
+	    inode->data.length += chunk_size;
+	  else 
+	    inode->data.length += chunk_size + sector_ofs;
           bytes_written += chunk_size;
         }
       else
@@ -416,9 +425,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
   while (size > 0) 
     {
-      if ( offset >= inode_length (inode))
+      if (offset >= inode_length (inode))
         {
-          bytes_written += extend_and_write (inode, buffer + bytes_written, size, offset);
+          bytes_written += extend_and_write (inode, 
+					     buffer + bytes_written, 
+					     size, offset);
           return bytes_written;
         }
           
