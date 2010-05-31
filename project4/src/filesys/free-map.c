@@ -3,16 +3,18 @@
 #include <debug.h>
 #include "filesys/file.h"
 #include "filesys/filesys.h"
-#include "filesys/inode.h"
+#include "threads/synch.h"
 
 static struct file *free_map_file;   /* Free map file. */
 static struct bitmap *free_map;      /* Free map, one bit per sector. */
+static struct lock free_map_lock;
 
 /* Initializes the free map. */
 void
 free_map_init (void) 
 {
   free_map = bitmap_create (block_size (fs_device));
+  lock_init (&free_map_lock);
   if (free_map == NULL)
     PANIC ("bitmap creation failed--file system device is too large");
   bitmap_mark (free_map, FREE_MAP_SECTOR);
@@ -25,8 +27,9 @@ free_map_init (void)
    sectors were available or if the free_map file could not be
    written. */
 bool
-free_map_allocate (size_t cnt, block_sector_t *sectorp)
+free_map_allocate_one (block_sector_t *sectorp)
 {
+  int cnt = 1;
   block_sector_t sector = bitmap_scan_and_flip (free_map, 0, cnt, false);
   if (sector != BITMAP_ERROR
       && free_map_file != NULL
@@ -38,6 +41,32 @@ free_map_allocate (size_t cnt, block_sector_t *sectorp)
   if (sector != BITMAP_ERROR)
     *sectorp = sector;
   return sector != BITMAP_ERROR;
+}
+
+bool 
+free_map_allocate_multiple (int cnt, block_sector_t start_index, 
+			    struct inode_disk *disk_inode)
+{
+  lock_acquire (&free_map_lock);
+  int free_count = bitmap_count (free_map, 0, block_size (fs_device),
+				 false);
+  if (free_count < cnt)
+    {
+      lock_release (&free_map_lock);
+      return false;
+    }
+  else 
+    {
+      int i;
+      for (i = 0; i < cnt; ++i)
+	{
+	  block_sector_t sector;
+	  if (free_map_allocate_one (&sector))
+	    put_sector (disk_inode, start_index + i, sector);
+	}
+    }
+  lock_release (&free_map_lock);
+  return true;
 }
 
 /* Makes CNT sectors starting at SECTOR available for use. */

@@ -7,18 +7,23 @@
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
 #include "filesys/cache.h"
+#include "devices/block.h"
+#include <inttypes.h>
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
+
+#define MI_NUM_DIRECT 100
+#define MI_NUM_DOUBLY_INDIRECT 1
+#define MI_NUM_INDIRECT (126 - MI_NUM_DIRECT - MI_NUM_DOUBLY_INDIRECT)
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    block_sector_t start;               /* First data sector. */
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
+    block_sector_t multi_index[126];          /* Multi-level block index */
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -40,6 +45,95 @@ struct inode
     struct inode_disk data;             /* Inode content. */
   };
 
+static const int SECTORS_PER_BLOCK = 
+  BLOCK_SECTOR_SIZE / sizeof (block_sector_t);
+  
+block_sector_t
+get_sector (const struct inode_disk *disk_inode, 
+	    block_sector_t block_index)
+{
+  ASSERT (disk_inode->length < 
+	  8 * 1024 * 1024 - MI_NUM_INDIRECT * BLOCK_SECTOR_SIZE - 
+	  MI_NUM_DOUBLY_INDIRECT * BLOCK_SECTOR_SIZE - 
+	  MI_NUM_DOUBLY_INDIRECT * SECTORS_PER_BLOCK * BLOCK_SECTOR_SIZE);
+  
+  /* REVISIT: validate return buffer */
+  if (block_index < MI_NUM_DIRECT)    
+    {
+      /* DIRECT */
+      return disk_inode->multi_index[block_index];
+    }
+  else if (block_index < MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK) 
+    {
+      /* INDIRECT */
+      block_index -= MI_NUM_DIRECT;
+      block_sector_t buffer[SECTORS_PER_BLOCK];
+      cache_read (fs_device, 
+		  disk_inode->multi_index[MI_NUM_DIRECT + block_index / SECTORS_PER_BLOCK],
+		  buffer, 0, BLOCK_SECTOR_SIZE);
+      return buffer[block_index % SECTORS_PER_BLOCK];
+    }
+  else
+    {
+      /* DOUBLY INDIRECT */
+      block_index -= MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK;
+      block_sector_t buffer[SECTORS_PER_BLOCK];
+      cache_read (fs_device, 
+		  disk_inode->multi_index[125 - MI_NUM_DOUBLY_INDIRECT],
+		  buffer, 0, BLOCK_SECTOR_SIZE);
+      
+      cache_read (fs_device,
+		  buffer[block_index / SECTORS_PER_BLOCK],
+		  buffer, 0, BLOCK_SECTOR_SIZE);
+      return buffer[block_index % SECTORS_PER_BLOCK];
+    }
+}
+
+void
+put_sector (struct inode_disk *disk_inode,
+	    block_sector_t block_index, block_sector_t sector)
+{
+  ASSERT (disk_inode->length < 
+	  8 * 1024 * 1024 - MI_NUM_INDIRECT * BLOCK_SECTOR_SIZE - 
+	  MI_NUM_DOUBLY_INDIRECT * BLOCK_SECTOR_SIZE - 
+	  MI_NUM_DOUBLY_INDIRECT * SECTORS_PER_BLOCK * BLOCK_SECTOR_SIZE);
+  
+  /* REVISIT: validate return buffer */
+  if (block_index < MI_NUM_DIRECT)    
+    {
+      /* DIRECT */
+      disk_inode->multi_index[block_index] = sector;
+    }
+  else if (block_index < MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK) 
+    {
+      /* INDIRECT */
+      block_index -= MI_NUM_DIRECT;
+      block_sector_t buffer[SECTORS_PER_BLOCK];
+      cache_read (fs_device, 
+		  disk_inode->multi_index[MI_NUM_DIRECT + block_index / SECTORS_PER_BLOCK],
+		  buffer, 0, BLOCK_SECTOR_SIZE);
+      buffer[block_index % SECTORS_PER_BLOCK] = sector;
+      cache_write (fs_device,
+		   disk_inode->multi_index[MI_NUM_DIRECT + block_index /
+  SECTORS_PER_BLOCK], 
+		   buffer, 0, BLOCK_SECTOR_SIZE);
+    }
+  else
+    {
+      /* DOUBLY INDIRECT */
+      block_index -= MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK;
+      block_sector_t buffer[SECTORS_PER_BLOCK];
+      cache_read (fs_device, 
+		  disk_inode->multi_index[125 - MI_NUM_DOUBLY_INDIRECT],
+		  buffer, 0, BLOCK_SECTOR_SIZE);
+      
+      block_sector_t tmp = buffer[block_index / SECTORS_PER_BLOCK];
+      cache_read (fs_device, tmp, buffer, 0, BLOCK_SECTOR_SIZE);
+      buffer[block_index % SECTORS_PER_BLOCK] = sector;
+      cache_write (fs_device, tmp, buffer, 0, BLOCK_SECTOR_SIZE);
+    }
+}
+
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -48,10 +142,10 @@ static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
   ASSERT (inode != NULL);
-  if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
-  else
+  off_t block_index = pos / BLOCK_SECTOR_SIZE;
+  if (pos >= inode->data.length)
     return -1;
+  return get_sector (&inode->data, block_index);
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -76,7 +170,7 @@ inode_create (block_sector_t sector, off_t length)
   struct inode_disk *disk_inode = NULL;
   bool success = false;
 
-  ASSERT (length >= 0);
+  ASSERT (length >= 0);  
 
   /* If this assertion fails, the inode structure is not exactly
      one sector in size, and you should fix that. */
@@ -88,7 +182,9 @@ inode_create (block_sector_t sector, off_t length)
       size_t sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
-      if (free_map_allocate (sectors, &disk_inode->start)) 
+
+      if (free_map_allocate_multiple (sectors, 0,
+				      disk_inode))
         {
           block_write (fs_device, sector, disk_inode);
           if (sectors > 0) 
@@ -96,8 +192,9 @@ inode_create (block_sector_t sector, off_t length)
               static char zeros[BLOCK_SECTOR_SIZE];
               size_t i;
               
-              for (i = 0; i < sectors; i++) 
-                block_write (fs_device, disk_inode->start + i, zeros);
+              for (i = 0; i < sectors; i++)
+                block_write (fs_device, 
+			     get_sector (disk_inode, i), zeros);
             }
           success = true; 
         } 
@@ -178,7 +275,7 @@ inode_close (struct inode *inode)
       if (inode->removed) 
         {
           free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
+          free_map_release (byte_to_sector(inode, 0),
                             bytes_to_sectors (inode->data.length)); 
         }
 

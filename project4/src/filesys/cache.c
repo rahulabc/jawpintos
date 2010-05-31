@@ -106,9 +106,7 @@ _cache_find_ensured (struct block *block, block_sector_t sector)
     }
   uint32_t index = bitmap_scan_and_flip (used_slots, 0, 1, false); 
   if (index == BITMAP_ERROR)
-    {
-      index = _cache_evict ();
-    }
+    index = _cache_evict ();
   _cache_fetch (index, block, sector);
   lock_acquire (&cache[index].cs_lock);
   lock_release (&cache_lock);
