@@ -121,7 +121,6 @@ cache_write (struct block *block, block_sector_t sector,
 	     const void *buffer, off_t offset, off_t size,
              struct inode_disk *disk_inode) 
 {
-  //printf ("sector: %d, offset: %d, size: %d\n", sector, offset, size);
   uint32_t index = _cache_find_ensured (block, sector);
   cache[index].rw_count++;
   lock_release (&cache[index].cs_lock);
@@ -158,7 +157,8 @@ cache_read (struct block *block, block_sector_t sector,
   lock_release (&cache[index].cs_lock);
 }
 
-void cache_flush (struct block *block, struct inode_disk *disk_inode)
+void 
+cache_flush (struct inode_disk *disk_inode)
 {
   /* iterate through all cache slots and flush */
   int i;

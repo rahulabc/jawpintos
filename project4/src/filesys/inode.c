@@ -18,6 +18,7 @@
 #define MI_NUM_DIRECT 100
 #define MI_NUM_DOUBLY_INDIRECT 1
 #define MI_NUM_INDIRECT (126 - MI_NUM_DIRECT - MI_NUM_DOUBLY_INDIRECT)
+#define INVALID_SECTOR_INDEX ((block_sector_t) (-1))
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -71,8 +72,13 @@ get_sector (struct inode_disk *disk_inode,
       /* INDIRECT */
       block_index -= MI_NUM_DIRECT;
       block_sector_t buffer[SECTORS_PER_BLOCK];
-      cache_read (fs_device, 
-		  disk_inode->multi_index[MI_NUM_DIRECT + block_index / SECTORS_PER_BLOCK],
+      
+      block_sector_t level_1_index = 
+	MI_NUM_DIRECT + block_index / SECTORS_PER_BLOCK;
+      if (disk_inode->multi_index[level_1_index] == INVALID_SECTOR_INDEX)
+	return INVALID_SECTOR_INDEX;
+
+      cache_read (fs_device, disk_inode->multi_index[level_1_index],
 		  buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
       return buffer[block_index % SECTORS_PER_BLOCK];
     }
@@ -81,15 +87,38 @@ get_sector (struct inode_disk *disk_inode,
       /* DOUBLY INDIRECT */
       block_index -= MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK;
       block_sector_t buffer[SECTORS_PER_BLOCK];
-      cache_read (fs_device, 
-		  disk_inode->multi_index[125 - MI_NUM_DOUBLY_INDIRECT],
-		  buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
       
-      cache_read (fs_device,
-		  buffer[block_index / SECTORS_PER_BLOCK],
+      block_sector_t level_1_index = 126 - MI_NUM_DOUBLY_INDIRECT;
+      if (disk_inode->multi_index[level_1_index] == INVALID_SECTOR_INDEX)
+	return INVALID_SECTOR_INDEX;
+
+      cache_read (fs_device, disk_inode->multi_index[level_1_index],
+		  buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
+
+      block_sector_t level_2_index = block_index / SECTORS_PER_BLOCK;
+      if (buffer[level_2_index] == INVALID_SECTOR_INDEX)
+	return INVALID_SECTOR_INDEX;
+
+      cache_read (fs_device, buffer[level_2_index],
 		  buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
       return buffer[block_index % SECTORS_PER_BLOCK];
     }
+}
+
+static block_sector_t
+_create_new_sector_ptr_block (struct inode_disk *disk_inode)
+{
+  block_sector_t sector_tmp;
+  if (!free_map_allocate_one (&sector_tmp))
+    return INVALID_SECTOR_INDEX;
+  block_sector_t buffer[SECTORS_PER_BLOCK];
+
+  int idx;
+  for (idx = 0; idx < SECTORS_PER_BLOCK; ++idx)
+    buffer[idx] = INVALID_SECTOR_INDEX;
+  cache_write (fs_device, sector_tmp, buffer, 
+	       0, BLOCK_SECTOR_SIZE, disk_inode);
+  return sector_tmp;
 }
 
 void
@@ -112,13 +141,17 @@ put_sector (struct inode_disk *disk_inode,
       /* INDIRECT */
       block_index -= MI_NUM_DIRECT;
       block_sector_t buffer[SECTORS_PER_BLOCK];
-      cache_read (fs_device, 
-		  disk_inode->multi_index[MI_NUM_DIRECT + block_index / SECTORS_PER_BLOCK],
+      block_sector_t level_1_index = MI_NUM_DIRECT + 
+	                             block_index / SECTORS_PER_BLOCK;
+
+      if (disk_inode->multi_index[level_1_index] == INVALID_SECTOR_INDEX)
+	disk_inode->multi_index[level_1_index] = 
+	  _create_new_sector_ptr_block (disk_inode);
+
+      cache_read (fs_device, disk_inode->multi_index[level_1_index],
 		  buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
       buffer[block_index % SECTORS_PER_BLOCK] = sector;
-      cache_write (fs_device,
-		   disk_inode->multi_index[MI_NUM_DIRECT + block_index /
-  SECTORS_PER_BLOCK], 
+      cache_write (fs_device, disk_inode->multi_index[level_1_index],
 		   buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
     }
   else
@@ -126,10 +159,19 @@ put_sector (struct inode_disk *disk_inode,
       /* DOUBLY INDIRECT */
       block_index -= MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK;
       block_sector_t buffer[SECTORS_PER_BLOCK];
-      cache_read (fs_device, 
-		  disk_inode->multi_index[125 - MI_NUM_DOUBLY_INDIRECT],
+      block_sector_t level_1_index = 126 - MI_NUM_DOUBLY_INDIRECT;
+      if (disk_inode->multi_index[level_1_index] == INVALID_SECTOR_INDEX)
+	disk_inode->multi_index[level_1_index] =
+	  _create_new_sector_ptr_block (disk_inode);
+
+      cache_read (fs_device, disk_inode->multi_index[level_1_index],
 		  buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
       
+      block_sector_t level_2_index = block_index / SECTORS_PER_BLOCK;
+      if (buffer[level_2_index] == INVALID_SECTOR_INDEX)
+	buffer[level_2_index] = 
+	  _create_new_sector_ptr_block (disk_inode);
+
       block_sector_t tmp = buffer[block_index / SECTORS_PER_BLOCK];
       cache_read (fs_device, tmp, buffer, 0, BLOCK_SECTOR_SIZE, disk_inode);
       buffer[block_index % SECTORS_PER_BLOCK] = sector;
@@ -147,8 +189,8 @@ byte_to_sector (struct inode *inode, off_t pos)
   ASSERT (inode != NULL);
   off_t block_index = pos / BLOCK_SECTOR_SIZE;
   off_t num = inode->data.length;
-  if (pos >= (num + (512 - num % 512)))
-    return -1;
+  if (pos >= inode->data.length)
+    return INVALID_SECTOR_INDEX;
   return get_sector (&inode->data, block_index);
 }
 
@@ -187,8 +229,13 @@ inode_create (block_sector_t sector, off_t length)
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
 
-      if (free_map_allocate_multiple (sectors, 0,
-				      disk_inode))
+      /* intialize the multi-level index table as all INVALID_SECTOR_INDEX 
+	 because it is an empty file now */
+      int idx;
+      for (idx = 0; idx < 126; ++idx)
+	disk_inode->multi_index[idx] = INVALID_SECTOR_INDEX;
+
+      if (free_map_allocate_multiple (sectors, 0, disk_inode))
         {
           block_write (fs_device, sector, disk_inode);
           if (sectors > 0) 
@@ -197,8 +244,7 @@ inode_create (block_sector_t sector, off_t length)
               size_t i;
               
               for (i = 0; i < sectors; i++)
-                block_write (fs_device, 
-			     get_sector (disk_inode, i), zeros);
+                block_write (fs_device, get_sector (disk_inode, i), zeros);
             }
           success = true; 
         } 
@@ -276,7 +322,7 @@ inode_close (struct inode *inode)
   if (--inode->open_cnt == 0)
     {
       /* Flush cache */
-      cache_flush (fs_device, &inode->data);
+      cache_flush (&inode->data);
       block_write (fs_device, inode->sector, &inode->data);
  
       /* Remove from inode list and release lock. */
@@ -361,14 +407,14 @@ extend_and_write (struct inode *inode, const void *buffer_, off_t size,
   while (size > 0) 
     {
       off_t flength = inode_length (inode);
-      block_sector_t sector_idx = byte_to_sector (inode, flength);
+      block_sector_t sector_idx = get_sector (&inode->data, 
+					      flength/BLOCK_SECTOR_SIZE);
       off_t block_start = flength % BLOCK_SECTOR_SIZE;
-      if (block_start == 0) //&& flength != 0)
+      if (sector_idx == INVALID_SECTOR_INDEX)
         {
-          if (free_map_allocate_multiple (1, 
-                                         flength / BLOCK_SECTOR_SIZE, 
+          if (free_map_allocate_multiple (1, flength / BLOCK_SECTOR_SIZE, 
 					  &inode->data))
-	    sector_idx = byte_to_sector (inode, flength);
+	    sector_idx = get_sector (&inode->data, flength/BLOCK_SECTOR_SIZE);
 	  else
             {
               lock_release (&inode->extension_lock);
@@ -376,8 +422,6 @@ extend_and_write (struct inode *inode, const void *buffer_, off_t size,
             }
         }
       off_t block_left = BLOCK_SECTOR_SIZE - block_start;
-      //printf ("zeroes: sector_idx: %d, offset: %d, size: %d, fsize: %d\n",
-      //      sector_idx, block_start, block_left, flength);
       cache_write (fs_device, sector_idx, zeros + block_start, 
                    block_start, block_left, &inode->data);
 
@@ -387,17 +431,15 @@ extend_and_write (struct inode *inode, const void *buffer_, off_t size,
           int sector_ofs = offset % BLOCK_SECTOR_SIZE; 
           int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
           int chunk_size = size < sector_left ? size : sector_left;
-	  //printf ("d: sector_idx: %d, offset: %d, size: %d, fsize: %d\n",
-	  //  sector_idx, sector_ofs, chunk_size, flength);
+
           cache_write (fs_device, sector_idx, buffer + bytes_written,
                        sector_ofs, chunk_size, &inode->data);
 
           size -= chunk_size;
           offset += chunk_size;
-	  if (inode->data.length % BLOCK_SECTOR_SIZE == sector_ofs)
-	    inode->data.length += chunk_size;
-	  else 
-	    inode->data.length += chunk_size + sector_ofs;
+	  inode->data.length += chunk_size;
+	  if (block_start != sector_ofs)
+	    inode->data.length += sector_ofs;
           bytes_written += chunk_size;
         }
       else
@@ -427,8 +469,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       if (offset >= inode_length (inode))
         {
-          bytes_written += extend_and_write (inode, 
-					     buffer + bytes_written, 
+          bytes_written += extend_and_write (inode, buffer + bytes_written, 
 					     size, offset);
           return bytes_written;
         }
