@@ -5,6 +5,7 @@
 #include "devices/block.h"
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
 #include "filesys/off_t.h"
 
 static struct lock cache_lock;
@@ -21,6 +22,7 @@ struct cache_slot {
   uint32_t rw_count;                // Num threads read/write
   struct condition no_rw_cond;      // Condition for running evict
   uint8_t data[BLOCK_SECTOR_SIZE];  // Actual Data
+  struct inode_disk *disk_inode;    // Inode that uses this
 };
 
 static struct cache_slot cache[CACHE_SIZE];
@@ -33,6 +35,7 @@ _cache_slot_init (uint32_t index)
   cache[index].block = NULL;
   cache[index].sector = -1;
   cache[index].rw_count = 0;
+  cache[index].disk_inode = NULL;
   memset (cache[index].data, 0, BLOCK_SECTOR_SIZE);
 }
 
@@ -115,7 +118,8 @@ _cache_find_ensured (struct block *block, block_sector_t sector)
 
 void 
 cache_write (struct block *block, block_sector_t sector, 
-	     const void *buffer, off_t offset, off_t size) 
+	     const void *buffer, off_t offset, off_t size,
+             struct inode_disk *disk_inode) 
 {
   uint32_t index = _cache_find_ensured (block, sector);
   cache[index].rw_count++;
@@ -123,6 +127,7 @@ cache_write (struct block *block, block_sector_t sector,
   
   cache[index].dirty = true;
   cache[index].accessed = true;
+  cache[index].disk_inode = disk_inode;
   memcpy (&cache[index].data[offset], buffer, size);
   
   lock_acquire (&cache[index].cs_lock);
@@ -134,13 +139,15 @@ cache_write (struct block *block, block_sector_t sector,
 
 void 
 cache_read (struct block *block, block_sector_t sector,
-	    void *buffer, off_t offset, off_t size)
+	    void *buffer, off_t offset, off_t size, 
+            struct inode_disk *disk_inode)
 {
   uint32_t index = _cache_find_ensured (block, sector);
   cache[index].rw_count++;
   lock_release (&cache[index].cs_lock);
 
   cache[index].accessed = true;
+  cache[index].disk_inode = disk_inode;
   memcpy (buffer, &cache[index].data[offset], size);
 
   lock_acquire (&cache[index].cs_lock);
@@ -149,3 +156,30 @@ cache_read (struct block *block, block_sector_t sector,
     cond_signal (&cache[index].no_rw_cond, &cache[index].cs_lock);
   lock_release (&cache[index].cs_lock);
 }
+
+void cache_flush (struct block *block, struct inode_disk *disk_inode)
+{
+  // iterate through all cache slots and flush..
+  int i;
+  for (i = 0; i < CACHE_SIZE; ++i) 
+    {
+      if (cache[i].disk_inode == disk_inode)
+        {
+          // force evict
+          lock_acquire (&cache[i].cs_lock);
+          while (cache[i].rw_count != 0)
+            cond_wait (&cache[i].no_rw_cond, 
+                       &cache[i].cs_lock);
+          if (cache[i].dirty)
+            {
+              block_write (cache[i].block,
+                           cache[i].sector,
+                           cache[i].data);
+            }
+          lock_release (&cache[i].cs_lock);
+          _cache_slot_init (i);
+        }
+    }
+}
+
+
