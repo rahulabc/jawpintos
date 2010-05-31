@@ -188,7 +188,6 @@ byte_to_sector (struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
   off_t block_index = pos / BLOCK_SECTOR_SIZE;
-  off_t num = inode->data.length;
   if (pos >= inode->data.length)
     return INVALID_SECTOR_INDEX;
   return get_sector (&inode->data, block_index);
