@@ -160,9 +160,7 @@ cache_read (struct block *block, block_sector_t sector,
 
 void cache_flush (struct block *block, struct inode_disk *disk_inode)
 {
-  //printf ("the given disk inode is: -------------------> %p\n",
-  //	  disk_inode);
-  //cache_print ();
+  /* iterate through all cache slots and flush */
   int i;
   for (i = 0; i < CACHE_SIZE; ++i) 
     {
@@ -177,8 +175,6 @@ void cache_flush (struct block *block, struct inode_disk *disk_inode)
               block_write (cache[i].block,
                            cache[i].sector,
                            cache[i].data);
-	      //printf ("block wrote on: sector %d\n",
-	      //      cache[i].sector);
             }
           lock_release (&cache[i].cs_lock);
           _cache_slot_init (i);
