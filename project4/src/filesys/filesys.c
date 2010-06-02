@@ -55,7 +55,7 @@ filesys_done (void)
 struct file *
 filesys_open (const char *name)
 {
-  if (strnlen (name, READDIR_MAX_LEN) == 0)
+  if (strnlen (name, FULLPATH_MAX_LEN) == 0)
     return NULL;
 
   struct dir *parent_dir = dir_reopen(dir_get_parent_dir (name));

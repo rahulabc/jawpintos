@@ -273,7 +273,7 @@ _strip_leading_spaces (const char *full_path, char *tokens, size_t len)
 bool 
 dir_get_leaf_name (const char *full_path, char *leaf_name)
 {
-  size_t len = strnlen (full_path, READDIR_MAX_LEN); 
+  size_t len = strnlen (full_path, FULLPATH_MAX_LEN); 
   char *tokens = (char *) malloc (len * sizeof (char) + 1);
   size_t new_len = _strip_leading_spaces (full_path, tokens, len);
   if (new_len == 0)
@@ -298,7 +298,7 @@ dir_get_leaf_name (const char *full_path, char *leaf_name)
       return false;
     }  
   strlcpy (leaf_name, last_token, strnlen (last_token, NAME_MAX)+1);
-  if (strnlen (last_token, READDIR_MAX_LEN) > NAME_MAX)
+  if (strnlen (last_token, FULLPATH_MAX_LEN) > NAME_MAX)
     {
       free (tokens);
       return false;
@@ -310,7 +310,7 @@ dir_get_leaf_name (const char *full_path, char *leaf_name)
 struct dir * 
 dir_get_parent_dir (const char *full_path)
 {
-  size_t len = strnlen (full_path, READDIR_MAX_LEN); 
+  size_t len = strnlen (full_path, FULLPATH_MAX_LEN); 
   char *tokens = (char *) malloc (len * sizeof (char) + 1);
   size_t new_len = _strip_leading_spaces (full_path, tokens, len);
 
@@ -410,5 +410,4 @@ dir_get_pos (struct dir *dir)
 {
   return dir->pos;
 }
-
 
