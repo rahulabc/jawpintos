@@ -30,4 +30,6 @@ bool dir_readdir (struct dir *, char name[NAME_MAX + 1]);
 bool dir_get_leaf_name (const char *full_path, char *leaf_name);
 struct dir* dir_get_parent_dir (const char *full_path);
 
+bool dir_is_empty (struct inode *);
+
 #endif /* filesys/directory.h */

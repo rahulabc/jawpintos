@@ -87,10 +87,34 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name) 
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
-  dir_close (dir); 
+  char leaf_name[NAME_MAX + 1];
+  if (!dir_get_leaf_name (name, leaf_name))
+    return false;
 
+  struct dir *parent_dir = dir_get_parent_dir (name);
+  
+  if (parent_dir == NULL)
+    return false;
+
+  struct inode *inode;
+  if (!dir_lookup (parent_dir, leaf_name, &inode))
+    {
+      dir_close (parent_dir);
+      return false;
+    }
+
+  bool success;
+  if (!inode_is_dir(inode)) // if is file
+    success = dir_remove (parent_dir, leaf_name);
+  else 
+    {
+      if (dir_is_empty (inode))
+	success = dir_remove (parent_dir, leaf_name);
+      else
+	success = false;
+    }
+  
+  dir_close (parent_dir); 
   return success;
 }
 
@@ -165,6 +189,27 @@ bool filesys_chdir (const char *full_path)
   dir_close (actual_dir);
   return true;
 }
+
+bool 
+filesys_isdir (int fd)
+{
+  struct file *file = file_find (fd);
+  if (file == NULL)
+    return false;
+  struct inode *inode = file_get_inode (file);
+  return inode_is_dir (inode);
+}
+
+int
+filesys_inumber (int fd)
+{
+  struct file *file = file_find (fd);
+  if (file == NULL)
+    return false;
+  struct inode *inode = file_get_inode (file);
+  return inode_get_inumber (inode);
+}
+
 
 /* Formats the file system. */
 static void
