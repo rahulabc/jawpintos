@@ -319,8 +319,9 @@ dir_get_parent_dir (const char *full_path)
   if (tokens[0] == '/')
     curr_dir = dir_open_root ();
   else 
-    curr_dir = dir_open(inode_open (thread_current ()->cwd_sector));
-
+    {
+      curr_dir = dir_open(inode_open (thread_current ()->cwd_sector));
+    }
 
   if (new_len == 0)
     {
@@ -397,3 +398,17 @@ dir_is_empty (struct inode *inode)
       return false;
   return true;
 }
+
+void 
+dir_set_pos (struct dir *dir, off_t pos)
+{
+  dir->pos = pos;
+}
+
+off_t 
+dir_get_pos (struct dir *dir)
+{
+  return dir->pos;
+}
+
+
