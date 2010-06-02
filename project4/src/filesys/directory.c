@@ -285,7 +285,12 @@ dir_get_leaf_name (const char *full_path, char *leaf_name)
   for (token = strtok_r (tokens, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
     last_token = token;
-  
+  if (last_token == NULL)
+    {
+      free (tokens);
+      leaf_name[0] = '\0';
+      return false;
+    }  
   strlcpy (leaf_name, last_token, strnlen (last_token, NAME_MAX)+1);
   if (strnlen (last_token, READDIR_MAX_LEN) > NAME_MAX)
     {
