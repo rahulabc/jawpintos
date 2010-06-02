@@ -186,7 +186,9 @@ bool filesys_readdir (int fd, char *name)
   struct inode *inode = file_get_inode (file);
   if (!inode_is_dir (inode))
     return false;
-  name[0] = '\0';
-  return true;
+  struct dir *dir = dir_open (inode);
+  bool success = dir_readdir (dir, name);
+  dir_close (dir);
+  return success;
 }
 
