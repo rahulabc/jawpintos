@@ -609,6 +609,8 @@ syscall_isdir (struct intr_frame *f, void *cur_sp)
 {
   int fd;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
+  f->eax = filesys_isdir (fd);
+  return;
 }
 
 static void 
@@ -616,6 +618,8 @@ syscall_inumber (struct intr_frame *f, void *cur_sp)
 {
   int fd;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
+  f->eax = filesys_inumber (fd);
+  return;
 }
 
 

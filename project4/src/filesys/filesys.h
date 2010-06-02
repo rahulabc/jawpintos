@@ -19,5 +19,6 @@ bool filesys_remove (const char *name);
 bool filesys_mkdir (const char *name);
 bool filesys_chdir (const char *name);
 bool filesys_readdir (int fd, char *name);
-
+bool filesys_isdir (int fd);
+int filesys_inumber (int fd);
 #endif /* filesys/filesys.h */

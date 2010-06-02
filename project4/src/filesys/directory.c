@@ -73,6 +73,8 @@ dir_open_root (void)
 struct dir *
 dir_reopen (struct dir *dir) 
 {
+  if (dir == NULL)
+    return NULL;
   return dir_open (inode_reopen (dir->inode));
 }
 
@@ -381,3 +383,17 @@ dir_get_parent_dir (const char *full_path)
   return prev_dir; 
 }
 
+bool 
+dir_is_empty (struct inode *inode)
+{
+  struct dir *dir = dir_open (inode);
+  
+  struct dir_entry e;
+  size_t ofs;
+
+  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+       ofs += sizeof e)
+    if (e.in_use)
+      return false;
+  return true;
+}
