@@ -301,14 +301,14 @@ dir_get_parent_dir (const char *full_path)
 {
   size_t len = strnlen (full_path, READDIR_MAX_LEN); 
   char *tokens = (char *) malloc (len * sizeof (char) + 1);
-
+  size_t new_len = _strip_leading_spaces (full_path, tokens, len);
   struct dir *curr_dir = NULL;
   if (tokens[0] == '/')
     curr_dir = dir_open_root ();
   else 
     curr_dir = dir_open(inode_open (thread_current ()->cwd_sector));
 
-  size_t new_len = _strip_leading_spaces (full_path, tokens, len);
+
   if (new_len == 0)
     {
       free (tokens);    
