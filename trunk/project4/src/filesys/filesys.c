@@ -232,7 +232,9 @@ bool filesys_readdir (int fd, char *name)
   if (!inode_is_dir (inode))
     return false;
   struct dir *dir = dir_open (inode);
+  dir_set_pos (dir, file_tell (file));
   bool success = dir_readdir (dir, name);
+  file_seek (file, dir_get_pos (dir));
   dir_close (dir);
   return success;
 }
