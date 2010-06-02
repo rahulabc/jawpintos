@@ -4,7 +4,9 @@
 #include <list.h>
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
+#include <user/syscall.h>
 #include "threads/malloc.h"
+#include "threads/thread.h"
 
 /* A directory. */
 struct dir 
@@ -26,7 +28,13 @@ struct dir_entry
 bool
 dir_create (block_sector_t sector, size_t entry_cnt)
 {
-  return inode_create (sector, entry_cnt * sizeof (struct dir_entry));
+  if(inode_create (sector, entry_cnt * sizeof (struct dir_entry)))
+    {
+      struct inode *inode = inode_open (sector);
+      inode_set_is_dir (inode);
+      return true;
+    }
+  return false;
 }
 
 /* Opens and returns the directory for the given INODE, of which
@@ -39,6 +47,9 @@ dir_open (struct inode *inode)
     {
       dir->inode = inode;
       dir->pos = 0;
+      inode_set_is_dir (inode);
+      if (inode_get_inumber (inode) == ROOT_DIR_SECTOR)
+        inode_set_parent_dir_sector (inode, ROOT_DIR_SECTOR);
       return dir;
     }
   else
@@ -139,7 +150,8 @@ dir_lookup (const struct dir *dir, const char *name,
    Fails if NAME is invalid (i.e. too long) or a disk or memory
    error occurs. */
 bool
-dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
+dir_add (struct dir *dir, const char *name, 
+         block_sector_t inode_sector)
 {
   struct dir_entry e;
   off_t ofs;
@@ -172,6 +184,12 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   e.in_use = true;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
+
+  /* update parent sector */
+  struct inode *child = inode_open (inode_sector);
+  inode_set_parent_dir_sector (child, inode_sector);
+  inode_close (child);
+ 
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
  done:
@@ -234,3 +252,114 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
     }
   return false;
 }
+
+static size_t
+_strip_leading_spaces (const char *full_path, char *tokens, size_t len)
+{
+  // strip first spaces and copy rest into tokens...
+  size_t i = 0;
+  for (i = 0; i < len; ++i) 
+    {
+      if (full_path[i] != ' ')
+        break;
+    } 
+  size_t new_len = len - i;
+  strlcpy (tokens, &full_path[i], new_len+1);
+  return new_len;
+}
+
+bool 
+dir_get_leaf_name (const char *full_path, char *leaf_name)
+{
+  size_t len = strnlen (full_path, READDIR_MAX_LEN); 
+  char *tokens = (char *) malloc (len * sizeof (char) + 1);
+  size_t new_len = _strip_leading_spaces (full_path, tokens, len);
+  if (new_len == 0)
+    {
+      leaf_name[0] = '\0';
+      free (tokens);
+      return false;
+    }
+  // tokenize on /
+  char *token, *save_ptr, *last_token=NULL;
+  for (token = strtok_r (tokens, "/", &save_ptr); token != NULL;
+       token = strtok_r (NULL, "/", &save_ptr))
+    last_token = token;
+  
+  strlcpy (leaf_name, last_token, strnlen (last_token, NAME_MAX)+1);
+  if (strnlen (last_token, READDIR_MAX_LEN) > NAME_MAX)
+    {
+      free (tokens);
+      return false;
+    }
+  free (tokens);
+  return true;
+}
+
+struct dir * 
+dir_get_parent_dir (const char *full_path)
+{
+  size_t len = strnlen (full_path, READDIR_MAX_LEN); 
+  char *tokens = (char *) malloc (len * sizeof (char) + 1);
+
+  struct dir *curr_dir = NULL;
+  if (tokens[0] == '/')
+    curr_dir = dir_open_root ();
+  else 
+    curr_dir = dir_open(inode_open (thread_current ()->cwd_sector));
+
+  size_t new_len = _strip_leading_spaces (full_path, tokens, len);
+  if (new_len == 0)
+    {
+      free (tokens);    
+      return curr_dir;
+    }
+  
+  // tokenize on /
+  struct dir *prev_dir = curr_dir;
+  if (inode_get_inumber (curr_dir->inode) != ROOT_DIR_SECTOR)
+    prev_dir = dir_open(inode_open (inode_get_parent_dir_sector 
+                                              (curr_dir->inode)));
+  char *token, *save_ptr;
+  bool cleanup_and_exit = false;
+  for (token = strtok_r (tokens, "/", &save_ptr); token != NULL;
+       token = strtok_r (NULL, "/", &save_ptr))
+    {
+      struct inode *entry;
+      if (!dir_lookup (curr_dir, token, &entry))
+        {
+	  token = strtok_r (NULL, "/", &save_ptr);
+	  if (token != NULL)
+	    cleanup_and_exit = true;
+          break;
+        }
+      if (!inode_is_dir (entry))
+        {
+          token = strtok_r (NULL, "/", &save_ptr);
+          if (token != NULL)
+            cleanup_and_exit = true;
+          break;
+        }
+      else 
+        {
+          if (prev_dir != curr_dir)
+            dir_close (prev_dir);
+          prev_dir = curr_dir;
+          curr_dir = dir_open (entry);
+          ASSERT( curr_dir != NULL);
+        }
+  }
+  if (cleanup_and_exit) 
+    {
+       if (prev_dir != curr_dir)  
+         dir_close (prev_dir);
+       dir_close (curr_dir);
+       free (tokens);
+       return NULL;
+    }
+  if (prev_dir != curr_dir)
+    dir_close (curr_dir);
+  free (tokens);
+  return prev_dir; 
+}
+

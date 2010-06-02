@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include "filesys/filesys.h"
 #include "threads/synch.h"
+#include "filesys/directory.h"
+#include "devices/block.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -125,6 +127,9 @@ struct thread
     /* list of acquired locks that needs to be freed when
        process terminates before releasing all the locks */
     struct list acquired_locks;
+
+    /* this thread's current working directory's sector */
+    block_sector_t cwd_sector;
   };
 
 

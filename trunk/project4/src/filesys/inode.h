@@ -28,5 +28,9 @@ void put_sector (struct inode_disk *disk_inode,
 		 block_sector_t block_index, 
 		 block_sector_t sector);
 
+bool inode_is_dir (const struct inode *);
+void inode_set_is_dir (struct inode *);
+block_sector_t inode_get_parent_dir_sector (struct inode *inode);
+void inode_set_parent_dir_sector (struct inode *inode, block_sector_t parent_dir_sector);
 
 #endif /* filesys/inode.h */
