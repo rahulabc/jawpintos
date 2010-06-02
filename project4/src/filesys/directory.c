@@ -284,7 +284,11 @@ dir_get_leaf_name (const char *full_path, char *leaf_name)
   char *token, *save_ptr, *last_token=NULL;
   for (token = strtok_r (tokens, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
-    last_token = token;
+    {
+      if (strcmp (token, ".") == 0)
+        continue;
+      last_token = token;
+    }
   if (last_token == NULL)
     {
       free (tokens);
@@ -333,6 +337,8 @@ dir_get_parent_dir (const char *full_path)
   for (token = strtok_r (tokens, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
     {
+      if (strcmp (token, ".") == 0) 
+        continue;
       struct inode *entry;
       if (!dir_lookup (curr_dir, token, &entry))
         {
