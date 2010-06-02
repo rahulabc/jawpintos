@@ -187,7 +187,7 @@ dir_add (struct dir *dir, const char *name,
 
   /* update parent sector */
   struct inode *child = inode_open (inode_sector);
-  inode_set_parent_dir_sector (child, inode_sector);
+  inode_set_parent_dir_sector (child, inode_get_inumber (dir->inode));
   inode_close (child);
  
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
