@@ -307,7 +307,9 @@ dir_get_parent_dir (const char *full_path)
   size_t len = strnlen (full_path, READDIR_MAX_LEN); 
   char *tokens = (char *) malloc (len * sizeof (char) + 1);
   size_t new_len = _strip_leading_spaces (full_path, tokens, len);
+
   struct dir *curr_dir = NULL;
+
   if (tokens[0] == '/')
     curr_dir = dir_open_root ();
   else 
@@ -327,6 +329,7 @@ dir_get_parent_dir (const char *full_path)
                                               (curr_dir->inode)));
   char *token, *save_ptr;
   bool cleanup_and_exit = false;
+
   for (token = strtok_r (tokens, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
     {
@@ -336,6 +339,8 @@ dir_get_parent_dir (const char *full_path)
 	  token = strtok_r (NULL, "/", &save_ptr);
 	  if (token != NULL)
 	    cleanup_and_exit = true;
+	  else
+	    prev_dir = curr_dir;
           break;
         }
       if (!inode_is_dir (entry))
@@ -343,6 +348,8 @@ dir_get_parent_dir (const char *full_path)
           token = strtok_r (NULL, "/", &save_ptr);
           if (token != NULL)
             cleanup_and_exit = true;
+	  else
+	    prev_dir = curr_dir;
           break;
         }
       else 
