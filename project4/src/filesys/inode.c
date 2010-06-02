@@ -14,10 +14,10 @@
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
-
+#define MI_SIZE 124
 #define MI_NUM_DIRECT 100
 #define MI_NUM_DOUBLY_INDIRECT 1
-#define MI_NUM_INDIRECT (126 - MI_NUM_DIRECT - MI_NUM_DOUBLY_INDIRECT)
+#define MI_NUM_INDIRECT (MI_SIZE - MI_NUM_DIRECT - MI_NUM_DOUBLY_INDIRECT)
 #define INVALID_SECTOR_INDEX ((block_sector_t) (-1))
 
 /* On-disk inode.
@@ -26,7 +26,9 @@ struct inode_disk
   {
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
-    block_sector_t multi_index[126];          /* Multi-level block index */
+    block_sector_t multi_index[MI_SIZE];    /* Multi-level block index */
+    bool is_dir;                        /* Directory or file */
+    block_sector_t parent_dir_sector;   /* Parent directory */
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -88,7 +90,7 @@ get_sector (struct inode_disk *disk_inode,
       block_index -= MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK;
       block_sector_t buffer[SECTORS_PER_BLOCK];
       
-      block_sector_t level_1_index = 126 - MI_NUM_DOUBLY_INDIRECT;
+      block_sector_t level_1_index = MI_SIZE - MI_NUM_DOUBLY_INDIRECT;
       if (disk_inode->multi_index[level_1_index] == INVALID_SECTOR_INDEX)
 	return INVALID_SECTOR_INDEX;
 
@@ -159,7 +161,7 @@ put_sector (struct inode_disk *disk_inode,
       /* DOUBLY INDIRECT */
       block_index -= MI_NUM_DIRECT + MI_NUM_INDIRECT * SECTORS_PER_BLOCK;
       block_sector_t buffer[SECTORS_PER_BLOCK];
-      block_sector_t level_1_index = 126 - MI_NUM_DOUBLY_INDIRECT;
+      block_sector_t level_1_index = MI_SIZE - MI_NUM_DOUBLY_INDIRECT;
       if (disk_inode->multi_index[level_1_index] == INVALID_SECTOR_INDEX)
 	disk_inode->multi_index[level_1_index] =
 	  _create_new_sector_ptr_block (disk_inode);
@@ -227,11 +229,13 @@ inode_create (block_sector_t sector, off_t length)
       size_t sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
+      disk_inode->is_dir = false;
+      disk_inode->parent_dir_sector = ROOT_DIR_SECTOR;
 
       /* intialize the multi-level index table as all INVALID_SECTOR_INDEX 
 	 because it is an empty file now */
       int idx;
-      for (idx = 0; idx < 126; ++idx)
+      for (idx = 0; idx < MI_SIZE; ++idx)
 	disk_inode->multi_index[idx] = INVALID_SECTOR_INDEX;
 
       if (free_map_allocate_multiple (sectors, 0, disk_inode))
@@ -525,3 +529,28 @@ inode_length (const struct inode *inode)
 {
   return inode->data.length;
 }
+
+bool
+inode_is_dir (const struct inode *inode)
+{
+   return inode->data.is_dir;
+}
+
+void
+inode_set_is_dir (struct inode *inode)
+{
+   inode->data.is_dir = true;
+}
+
+void
+inode_set_parent_dir_sector (struct inode *inode, block_sector_t parent_dir_sector)
+{
+   inode->data.parent_dir_sector = parent_dir_sector;
+}
+
+block_sector_t
+inode_get_parent_dir_sector (struct inode *inode)
+{
+   return inode->data.parent_dir_sector;
+}
+

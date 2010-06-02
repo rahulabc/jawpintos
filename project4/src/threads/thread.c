@@ -15,6 +15,7 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
+#include "filesys/directory.h"
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -208,6 +209,7 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
   t->parent_id = thread_current ()->tid;
+  t->cwd_sector = thread_current()->cwd_sector;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 

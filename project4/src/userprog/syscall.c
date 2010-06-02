@@ -596,22 +596,18 @@ find_file (int fd)
 static void 
 syscall_chdir (struct intr_frame *f, void *cur_sp)
 {
-  const char *dir;
-  VALIDATE_AND_GET_ARG (cur_sp, dir, f);
-
+  const char *dir_name;
+  VALIDATE_AND_GET_ARG (cur_sp, dir_name, f);
+  f->eax = filesys_chdir (dir_name);
+  return;
 }
 
 static void 
 syscall_mkdir (struct intr_frame *f, void *cur_sp)
 {
-  const char *dir;
-  VALIDATE_AND_GET_ARG (cur_sp, dir, f);
-  if ( strlen (dir) == 0 )
-    {
-      f->eax = 0;
-      return;
-    }
-  f->eax = 1;
+  const char *dir_name;
+  VALIDATE_AND_GET_ARG (cur_sp, dir_name, f);
+  f->eax = filesys_mkdir (dir_name);
   return;
 }
 
