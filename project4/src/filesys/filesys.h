@@ -18,5 +18,6 @@ struct file *filesys_open (const char *name);
 bool filesys_remove (const char *name);
 bool filesys_mkdir (const char *name);
 bool filesys_chdir (const char *name);
+bool filesys_readdir (int fd, char *name);
 
 #endif /* filesys/filesys.h */

@@ -2,6 +2,8 @@
 #include <debug.h>
 #include <stdio.h>
 #include "filesys/inode.h"
+#include "userprog/syscall.h"
+#include "threads/thread.h"
 #include "threads/malloc.h"
 
 /* An open file. */
@@ -169,3 +171,21 @@ file_tell (struct file *file)
   ASSERT (file != NULL);
   return file->pos;
 }
+
+struct file *
+file_find (int fd)
+{
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  for (e = list_begin (&t->file_list);
+       e != list_end (&t->file_list);
+       e = list_next (e))
+    {
+      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+      if (f_elem->fd == fd)
+        return f_elem->file;
+    }
+  return NULL;
+}
+
+
