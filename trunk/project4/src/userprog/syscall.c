@@ -40,9 +40,6 @@ static void syscall_inumber (struct intr_frame *f, void *cur_sp);
 /* pointer validity */
 static bool syscall_invalid_ptr (const void *ptr);
 
-/* find file pointer from file descriptor */
-static struct file *find_file (int fd);
-
 static struct lock next_fd_lock;
 static struct lock create_remove_filesys_lock;
 static struct lock read_filesys_lock;
@@ -371,7 +368,7 @@ syscall_filesize (struct intr_frame *f, void *cur_sp)
   int fd;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
 
-  struct file *file = find_file (fd);
+  struct file *file = file_find (fd);
   if (file != NULL)
     {
       lock_acquire (&write_filesys_lock);
@@ -428,7 +425,7 @@ syscall_read (struct intr_frame *f, void *cur_sp)
       return;
     }
   
-  struct file *file = find_file (fd);
+  struct file *file = file_find (fd);
   if (file != NULL)
     {
       lock_acquire (&read_filesys_lock);
@@ -484,7 +481,7 @@ syscall_write (struct intr_frame *f, void *cur_sp)
       return;
     }
 
-  struct file *file = find_file (fd);
+  struct file *file = file_find (fd);
   if (file != NULL)
     {
       lock_acquire (&read_filesys_lock);
@@ -506,7 +503,7 @@ syscall_seek (struct intr_frame *f, void *cur_sp)
   cur_sp += sizeof (void *);
   VALIDATE_AND_GET_ARG (cur_sp, position, f);
 
-  struct file *file = find_file (fd);
+  struct file *file = file_find (fd);
   if (file != NULL)
     {
       lock_acquire (&read_filesys_lock);
@@ -525,7 +522,7 @@ syscall_tell (struct intr_frame *f, void *cur_sp)
   int fd;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
 
-  struct file *file = find_file (fd);
+  struct file *file = file_find (fd);
   if (file != NULL)
     {
       lock_acquire (&read_filesys_lock);
@@ -577,23 +574,7 @@ syscall_invalid_ptr (const void *ptr)
 }
 
 
-static struct file *
-find_file (int fd)
-{
-  struct thread *t = thread_current ();
-  struct list_elem *e;
-  for (e = list_begin (&t->file_list);
-       e != list_end (&t->file_list);
-       e = list_next (e))
-    {
-      struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
-      if (f_elem->fd == fd)
-        return f_elem->file;
-    }
-  return NULL;
-}
-
-static void 
+void 
 syscall_chdir (struct intr_frame *f, void *cur_sp)
 {
   const char *dir_name;
@@ -617,8 +598,10 @@ syscall_readdir (struct intr_frame *f, void *cur_sp)
   int fd;
   VALIDATE_AND_GET_ARG (cur_sp, fd, f);
   cur_sp += sizeof (int);
-  const char *dir;
-  VALIDATE_AND_GET_ARG (cur_sp, dir, f);
+  char *name;
+  VALIDATE_AND_GET_ARG (cur_sp, name, f);
+  f->eax = filesys_readdir (fd, name);
+  return;
 }
 
 static void 

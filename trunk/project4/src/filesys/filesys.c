@@ -177,3 +177,16 @@ do_format (void)
   free_map_close ();
   printf ("done.\n");
 }
+
+bool filesys_readdir (int fd, char *name)
+{
+  struct file *file = file_find (fd);
+  if (file == NULL)
+    return false;
+  struct inode *inode = file_get_inode (file);
+  if (!inode_is_dir (inode))
+    return false;
+  name[0] = '\0';
+  return true;
+}
+
