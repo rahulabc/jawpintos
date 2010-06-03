@@ -170,12 +170,9 @@ cache_flush (struct inode_disk *disk_inode)
           while (cache[i].rw_count != 0)
             cond_wait (&cache[i].no_rw_cond, 
                        &cache[i].cs_lock);
-          if (cache[i].dirty)
-            {
-              block_write (cache[i].block,
-                           cache[i].sector,
-                           cache[i].data);
-            }
+	  block_write (cache[i].block,
+		       cache[i].sector,
+		       cache[i].data);
           lock_release (&cache[i].cs_lock);
           _cache_slot_init (i);
         }
@@ -184,15 +181,14 @@ cache_flush (struct inode_disk *disk_inode)
 
 void 
 cache_flush_all (void)
-{
+{ 
   int i;
   for (i = 0; i < CACHE_SIZE; ++i)
     {
       lock_acquire (&cache[i].cs_lock);
-      if (cache[i].dirty)
-        block_write (cache[i].block,
-                     cache[i].sector,
-                     cache[i].data);
+      block_write (cache[i].block,
+		   cache[i].sector,
+		   cache[i].data);
       lock_release (&cache[i].cs_lock);
       _cache_slot_init (i);        
     }
