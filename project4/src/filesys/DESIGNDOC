@@ -52,6 +52,18 @@ We store a bool 'is_dir' in the inode_disk to indicate whether the inode
 is a file or a directory.
 
 We store a block_sector_t corresponding to the parent directory sector.
+
+In inode.c:
+
+struct inode
+  { 
+     ...
+    struct lock extension_lock;       /*lock for extension of file */
+     ...
+  }
+
+We store an extension_lock per inode. This is locked by threads that want
+to extend the file.
 ***************************************************************************
 
 >> A2: What is the maximum size of a file supported by your inode
@@ -129,6 +141,13 @@ This way, we avoid process A reading beyond what B has written.
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
 ***************************************************************************
+We provide "fairness" by allowing only the threads that extend and write
+to actually block. The reader threads are not synchronized and can read 
+as and when they enter and can only read upto length (which is updated 
+only after the extend and write). This provides fairness to the readers 
+when writers are writing to the file. When many processes read from a 
+file, we still allow the writers to write and extend the file by 
+acquiring a lock for the inode (called the 'extension_lock'). 
 
 ***************************************************************************
 
