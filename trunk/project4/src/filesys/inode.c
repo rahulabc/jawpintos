@@ -513,6 +513,7 @@ void
 inode_set_is_dir (struct inode *inode)
 {
    inode->data.is_dir = true;
+   block_write (fs_device, inode->sector, &inode->data);
 }
 
 void
