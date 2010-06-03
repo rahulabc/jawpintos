@@ -204,7 +204,30 @@ We store a block_sector_t corresponding to the parent directory sector.
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
 ***************************************************************************
+In our design, we store the sector number of the current working 
+directory of the process within struct thread. We differentiate absolute
+and relative paths by looking at the first byte of the path received.
 
+Before we read the first byte, we strip off any leading spaces from the
+path. Having a directory iterator set to root directory if path starts
+with '/' or to current working directory of the thread, we traverse by
+using dir_lookup function with the strings which is tokenized from 
+the path by '/'. If dir_lookup finds the file within a directory and the
+file looked up is a directory, move down the path.
+
+If the token is '.', then we stay in the same directory.
+
+If the token is '..', then we move up to the parent directory.
+
+Moving up to the parent directory is possible because we store the
+parent directory's sector number in every file (inode).
+
+Errors that may arise while traversing through file path are:
+1. If the current token is not a directory, and there is at least one
+   token left behind.
+2. If the token is not looked up from the parent directory.
+
+In these cases, we indicate that the traversal has failed.
 ***************************************************************************
 
 ---- SYNCHRONIZATION ----
