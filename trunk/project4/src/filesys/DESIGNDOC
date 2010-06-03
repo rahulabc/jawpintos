@@ -144,10 +144,12 @@ This way, we avoid process A reading beyond what B has written.
 We provide "fairness" by allowing only the threads that extend and write
 to actually block. The reader threads are not synchronized and can read 
 as and when they enter and can only read upto length (which is updated 
-only after the extend and write). This provides fairness to the readers 
-when writers are writing to the file. When many processes read from a 
-file, we still allow the writers to write and extend the file by 
-acquiring a lock for the inode (called the 'extension_lock'). 
+only after the extend and write as described in A4). 
+This provides fairness to the readers when writers are writing to the file. 
+When many processes read from a file, we still allow the writers to 
+write and extend the file by acquiring a lock for the inode (called 
+the 'extension_lock'), thus providing fairness to the writers when
+readers are reading the file.
 
 ***************************************************************************
 
