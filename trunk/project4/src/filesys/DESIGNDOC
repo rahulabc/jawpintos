@@ -29,14 +29,55 @@ Anand Madhavan <manand@stanford.edu>
 >> A1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+***************************************************************************
+
+***************************************************************************
 
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
+***************************************************************************
+Our multi-level indexing table has a total of 124 slots with 100 direct 
+slots, 23 indirect slots and 1 doubly indirect slot. Assuming that the
+file system is 8MB large, which is 8388608 bytes = 16384 512-byte sectors,
+the maximum file size supported by our inode structure is :
+
+The total amount of space allocated by direct slots is:
+100 * 512 bytes.
+
+The total amount of space allocated by indirect slots is:
+(23 * (512 / 4) * 512) + (512 * 23) bytes.
+
+Where the first expression is that of the actual data and the second is
+the metadata that has the the pointers to file blocks.
+
+After direct and indirect blocks, the total allocated bytes = 1570304
+bytes.
+
+Total Metadata and data allocated by doubly indirect should be :
+6818304.
+
+Since we have only one doubly indirect block, it uses a single block for
+indirect pointers, which nees 512 bytes.
+The number of (direct block pointer tables + data blocks) that can be
+allocated is:
+(6818304 - 512) / (512 + (512 / 4) * 512) = 103.224806.
+
+Thus we allocate 104 direct block tables, which are 53248 bytes total.
+
+Thus, the total number of sectors we use for metadata are:
+23 + 1 + 104 = 128 blocks.
+
+Max size of a file = (16384 - 128) * 512 = 8 323 072 bytes
+***************************************************************************
+
 
 ---- SYNCHRONIZATION ----
 
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
+***************************************************************************
+
+***************************************************************************
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -44,6 +85,9 @@ Anand Madhavan <manand@stanford.edu>
 >> may not read data other than what B writes, e.g. if B writes
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
+***************************************************************************
+
+***************************************************************************
 
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
@@ -51,6 +95,9 @@ Anand Madhavan <manand@stanford.edu>
 >> prevent forever another process from writing the file, and many
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
+***************************************************************************
+
+***************************************************************************
 
 ---- RATIONALE ----
 
@@ -59,6 +106,9 @@ Anand Madhavan <manand@stanford.edu>
 >> indirect blocks?  If not, why did you choose an alternative inode
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
+***************************************************************************
+
+***************************************************************************
 
 			    SUBDIRECTORIES
 			    ==============
@@ -68,11 +118,17 @@ Anand Madhavan <manand@stanford.edu>
 >> B1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+***************************************************************************
+
+***************************************************************************
 
 ---- ALGORITHMS ----
 
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
+***************************************************************************
+
+***************************************************************************
 
 ---- SYNCHRONIZATION ----
 
@@ -80,16 +136,25 @@ Anand Madhavan <manand@stanford.edu>
 >> only one of two simultaneous attempts to remove a single file
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
+***************************************************************************
+
+***************************************************************************
 
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
+***************************************************************************
+
+***************************************************************************
 
 ---- RATIONALE ----
 
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
+***************************************************************************
+
+***************************************************************************
 
 			     BUFFER CACHE
 			     ============
@@ -99,29 +164,50 @@ Anand Madhavan <manand@stanford.edu>
 >> C1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+***************************************************************************
+
+***************************************************************************
 
 ---- ALGORITHMS ----
 
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
+***************************************************************************
+
+***************************************************************************
 
 >> C3: Describe your implementation of write-behind.
+***************************************************************************
+
+***************************************************************************
 
 >> C4: Describe your implementation of read-ahead.
+***************************************************************************
+
+***************************************************************************
 
 ---- SYNCHRONIZATION ----
 
 >> C5: When one process is actively reading or writing data in a
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
+***************************************************************************
+
+***************************************************************************
 
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
+***************************************************************************
+
+***************************************************************************
 
 ---- RATIONALE ----
 
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
+***************************************************************************
+
+***************************************************************************
 
 			   SURVEY QUESTIONS
 			   ================
