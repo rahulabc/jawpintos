@@ -6,6 +6,7 @@
 #include "threads/malloc.h"
 #include "filesys/cache.h"
 #include <stdio.h>
+#include "filesys/fsutil.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -233,7 +234,7 @@ inode_create (block_sector_t sector, off_t length)
    Returns a null pointer if memory allocation fails. */
 struct inode *
 inode_open (block_sector_t sector)
-{
+{ 
   struct list_elem *e;
   struct inode *inode;
 
