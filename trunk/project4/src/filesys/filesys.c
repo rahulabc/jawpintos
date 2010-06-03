@@ -9,6 +9,7 @@
 #include "filesys/directory.h"
 #include "filesys/cache.h"
 #include "threads/thread.h"
+#include "devices/block.h"
 
 /* Partition that contains the file system. */
 struct block *fs_device;
@@ -200,7 +201,8 @@ _filesys_create (const char *full_path, off_t initial_size,
       dir_close (parent_dir);
       return false;
     }
-  bool success = is_dir? dir_create (inode_sector, 0) : 
+  bool success = is_dir? dir_create (inode_sector, BLOCK_SECTOR_SIZE / 
+				     sizeof (struct dir_entry)) : 
                          inode_create (inode_sector, initial_size);
   if (!success)
     {
@@ -276,7 +278,7 @@ do_format (void)
 {
   printf ("Formatting file system...");
   free_map_create ();
-  if (!dir_create (ROOT_DIR_SECTOR, 16))
+  if (!dir_create (ROOT_DIR_SECTOR, BLOCK_SECTOR_SIZE))
     PANIC ("root directory creation failed");
   free_map_close ();
   printf ("done.\n");
