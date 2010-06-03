@@ -21,6 +21,7 @@ struct file *
 file_open (struct inode *inode) 
 {
   struct file *file = calloc (1, sizeof *file);
+
   if (inode != NULL && file != NULL)
     {
       file->inode = inode;

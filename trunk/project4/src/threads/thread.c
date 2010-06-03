@@ -16,6 +16,7 @@
 #include "userprog/process.h"
 #endif
 #include "filesys/directory.h"
+#include "filesys/filesys.h"
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -123,6 +124,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  initial_thread->cwd_sector = ROOT_DIR_SECTOR;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -210,6 +212,7 @@ thread_create (const char *name, int priority,
   tid = t->tid = allocate_tid ();
   t->parent_id = thread_current ()->tid;
   t->cwd_sector = thread_current()->cwd_sector;
+  //t->cwd_name = thread_current ()->cwd_name;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
