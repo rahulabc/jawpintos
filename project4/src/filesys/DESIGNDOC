@@ -154,7 +154,7 @@ readers are reading the file.
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
 ***************************************************************************
-First of all, we assume that most of the files in a file system is fairly 
+First of all, we assume that most of the files in a file system are fairly 
 small. Thus, access to small files should be very fast.
 Direct block pointers provide a very fast way to access a block on disk.
 However, because the file descriptor (inode_disk) is limited to only
