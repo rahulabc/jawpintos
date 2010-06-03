@@ -247,7 +247,7 @@ In these cases, we indicate that the traversal has failed.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 ***************************************************************************
-
+TODO
 ***************************************************************************
 
 >> B5: Does your implementation allow a directory to be removed if it
@@ -255,6 +255,15 @@ In these cases, we indicate that the traversal has failed.
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
 ***************************************************************************
+We currently allow a process to still write and read from its current
+working directory even thought it is deleted. 
+
+We store the current working directory's sector in the thread. When a
+directory is removed, it puts the slot in the parent directory as not 
+'in_use' and removes the inode corresponding to it from memory. This 
+results in the process that uses the removed directory as the current
+working directory to still be able to access the file through the sector 
+and write and read it. 
 
 ***************************************************************************
 
@@ -315,16 +324,17 @@ have a condition variable for running eviction.
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
 ***************************************************************************
-
+TODO
 ***************************************************************************
 
 >> C3: Describe your implementation of write-behind.
 ***************************************************************************
-
+TODO
 ***************************************************************************
 
 >> C4: Describe your implementation of read-ahead.
 ***************************************************************************
+We have not implemented read-ahead.
 
 ***************************************************************************
 
@@ -371,7 +381,7 @@ slot lock.
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
 ***************************************************************************
-
+TODO
 ***************************************************************************
 
 			   SURVEY QUESTIONS
