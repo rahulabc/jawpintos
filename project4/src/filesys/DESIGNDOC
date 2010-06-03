@@ -197,6 +197,16 @@ is a file or a directory.
 
 We store a block_sector_t corresponding to the parent directory sector.
 
+struct thread
+  {
+    ... 
+    /* this thread's current working directory's sector */
+    block_sector_t cwd_sector;
+    ...
+  };
+
+The thread structure now contains the sector of the current working
+directory.
 ***************************************************************************
 
 ---- ALGORITHMS ----
@@ -253,7 +263,12 @@ In these cases, we indicate that the traversal has failed.
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
 ***************************************************************************
-
+We chose to store the sector for the current working directory in the 
+thread. We chose this instead of an inode or a dir structure because 
+we can always obtain/create an inode or a dir from the sector. 
+Additionally this offers the convenience of being able to compare 
+directories using the sectors instead of dir or file pointers which 
+can be different yet pointing to the same directory.
 ***************************************************************************
 
 			     BUFFER CACHE
