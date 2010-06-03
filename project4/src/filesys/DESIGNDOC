@@ -161,7 +161,23 @@ readers are reading the file.
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
 ***************************************************************************
+First of all, we assume that most of the files in a file system is fairly 
+small. Thus, access to small files should be very fast.
+Direct block pointers provide a very fast way to access a block on disk.
+However, because the file descriptor (inode_disk) is limited to only
+a single block, the maximum possible file size will be less than 64KB
+large. So, we have to use indirect and doubly indirect blocks. 
 
+Note that the file system on pintos is limited to 8 MB. A single slot of
+doubly indirect block uses (1 + 512 / 4 + 512 / 4 * 512 / 4) = 16513
+blocks or 8 454 656 bytes, which is larger than 8MB. Thus, we only
+allocate a single doubly indirect slot. 
+
+Since we have 124 total slots in inode_disk, we though that 100 direct
+slots will provide more than enough efficiency for small files.
+The single doubly indirect block will provide access to file of any 
+size less than 8MB. Thus, we have 100 direct 23 indirect, and 1 
+doubly indirect blocks.
 ***************************************************************************
 
 			    SUBDIRECTORIES
