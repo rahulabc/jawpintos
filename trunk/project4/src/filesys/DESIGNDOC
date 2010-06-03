@@ -289,13 +289,36 @@ have a condition variable for running eviction.
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 ***************************************************************************
+Note that we have 64 slots for the whole cache. We have implemented this
+synchronization by having a lock per cache slot and also having a variable
+rw_count, which keeps a count of the number of processes reading or
+writing on the cache. 
 
+When a thread attempts to read or write, it first acquires the cache slot
+lock, increments the rw_count and releases it. Then it reads or writes,
+without any lock and this provides multiple processes to read/write 
+simultaneously. After the read/write the thread acquires the cache slot
+lock again, decrements the rw_count. If rw_count is zero, the thread
+uses a condition variable to signal the eviction process that the slot
+is free to evict.
+
+Cache evict acquires the cache slot lock and waits for the condition 
+variable, no_rw_cond, to be signaled. It double checks in a while loop
+that the rw_count is 0 before actually starting the eviction process.
 ***************************************************************************
 
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
 ***************************************************************************
+As written in C5, all read/writes require the cache slot lock before
+reading or writing to increment the rw_count. Thus, when eviction is 
+going on, the process evicting the cache block will have acquired the lock
+so that no other thread can access it.
 
+There won't be any case where cache eviction happens after a read/write
+thread has acquired the lock since the rw_count will be greater than zero
+and the evicting process wouldn't have been able to acquire the cache
+slot lock.
 ***************************************************************************
 
 ---- RATIONALE ----
