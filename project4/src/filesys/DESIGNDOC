@@ -235,7 +235,34 @@ doubly indirect blocks.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 ***************************************************************************
+In cache.c:
 
+static struct lock cache_lock;      // global lock for the cache 
+static struct bitmap *used_slots;   // Keeps track of used slots 
+
+#define CACHE_SIZE 64
+
+struct cache_slot {
+  bool accessed;                    // For LRU algorithm
+  bool dirty;                       // For write-behind
+  struct block *block;              // Filesys block pointer
+  block_sector_t sector;            // Sector number
+  struct lock cs_lock;              // Lock for this slot
+  uint32_t rw_count;                // Num threads read/write
+  struct condition no_rw_cond;      // Condition for running evict
+  uint8_t data[BLOCK_SECTOR_SIZE];  // Actual Data
+  struct inode_disk *disk_inode;    // Inode that uses this
+};
+
+static struct cache_slot cache[CACHE_SIZE];
+
+We keep a cache of size 64. Each slot in the cache contains data of size
+BLOCK_SECTOR_SIZE and the disk_inode that uses it. 
+Each slot also contains 'accessed' flag for implementing the LRU algorithm
+and a 'dirty' flag for implementing 'write-behind'. It contains a lock for
+the slot and a count of number of threads that read and write it. We also
+have a condition variable for running eviction.
+ 
 ***************************************************************************
 
 ---- ALGORITHMS ----
