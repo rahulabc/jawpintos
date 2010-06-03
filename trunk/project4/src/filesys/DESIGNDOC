@@ -36,8 +36,6 @@ struct inode_disk
   {
     ...
     block_sector_t multi_index[MI_SIZE];  /* Multi-level block index */
-    bool is_dir;                          /* Directory or file */
-    block_sector_t parent_dir_sector;     /* Parent directory */
     ...
   };
 
@@ -47,11 +45,6 @@ The first 100 entries in the table are direct entries
 (defined by MI_NUM_DIRECT). The next entries (MI_NUM_INDIRECT)
 are sector values for the indirect table entries. The last entry corresponds
 to the doubly indirect table entry.
-
-We store a bool 'is_dir' in the inode_disk to indicate whether the inode 
-is a file or a directory.
-
-We store a block_sector_t corresponding to the parent directory sector.
 
 In inode.c:
 
@@ -189,6 +182,20 @@ doubly indirect blocks.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 ***************************************************************************
+In inode.c:
+
+struct inode_disk
+  {
+    ...
+    bool is_dir;                          /* Directory or file */
+    block_sector_t parent_dir_sector;     /* Parent directory */
+    ...
+  };
+
+We store a bool 'is_dir' in the inode_disk to indicate whether the inode 
+is a file or a directory.
+
+We store a block_sector_t corresponding to the parent directory sector.
 
 ***************************************************************************
 
