@@ -58,10 +58,41 @@ filesys_open (const char *name)
   if (strnlen (name, FULLPATH_MAX_LEN) == 0)
     return NULL;
 
+  if (strcmp (".", name) == 0)
+    {
+      block_sector_t cwd = thread_current ()->cwd_sector;
+      struct inode *curr = NULL;
+      curr = inode_open (cwd);
+
+      struct dir *p;
+      p = dir_open (inode_open (curr->data.parent_dir_sector));
+      
+      struct dir_entry e;
+      size_t ofs;
+
+      ASSERT (p != NULL);
+
+      for (ofs = 0; 
+	   inode_read_at (p->inode, &e, sizeof e, ofs) == sizeof e;
+	   ofs += sizeof e)
+	{
+	  if (e.inode_sector == cwd && e.in_use)
+	    {
+	      return filesys_open (e.name); 
+	    }
+	}
+      return NULL;
+    }
+  struct inode *crr = NULL;
+  crr = inode_open (thread_current ()->cwd_sector);
+
   struct dir *parent_dir = dir_reopen(dir_get_parent_dir (name));
+  //if (crr->data.is_dir)
+  //parent_dir = dir_open (inode_open (crr->data.parent_dir_sector));
+  //else 
   if (parent_dir == NULL)
     return NULL;
-
+  
   struct inode *inode = NULL;
   
   char leaf_name[NAME_MAX + 1];
@@ -86,7 +117,7 @@ filesys_open (const char *name)
    or if an internal memory allocation fails. */
 bool
 filesys_remove (const char *name) 
-{
+{   
   char leaf_name[NAME_MAX + 1];
   if (!dir_get_leaf_name (name, leaf_name))
     return false;
@@ -109,7 +140,9 @@ filesys_remove (const char *name)
   else 
     {
       if (dir_is_empty (inode))
-	success = dir_remove (parent_dir, leaf_name);
+	{
+	  success = dir_remove (parent_dir, leaf_name);
+	}
       else
 	success = false;
     }
@@ -126,6 +159,32 @@ static bool
 _filesys_create (const char *full_path, off_t initial_size, 
 		 bool is_dir)
 {
+  block_sector_t cwd = thread_current ()->cwd_sector;
+  bool found = true;
+  if (cwd != (block_sector_t) ROOT_DIR_SECTOR)
+    {
+      struct inode *curr = NULL;
+      curr = inode_open (cwd);      
+      struct dir *p;
+      p = dir_open (inode_open (curr->data.parent_dir_sector));      
+      struct dir_entry e;
+      size_t ofs;      
+      ASSERT (p != NULL);      
+      found = false;      
+      for (ofs = 0;
+	   inode_read_at (p->inode, &e, sizeof e, ofs) == sizeof e;
+	   ofs += sizeof e)
+	{
+	  if (e.inode_sector == cwd && e.in_use)
+	    {
+	      found = true;
+	      break;
+	    }
+	}
+    }
+  if (!found)
+    return false;
+
   char leaf_name[NAME_MAX + 1];
   if (!dir_get_leaf_name (full_path, leaf_name))
     return false;
